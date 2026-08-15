@@ -1,0 +1,34 @@
+{
+  "name": "aurora-commerce",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint .",
+    "db:test": "node scripts/test-db.js",
+    "db:seed": "node scripts/seed.js"
+  },
+  "dependencies": {
+    "bcryptjs": "^3.0.2",
+    "bootstrap": "^5.3.8",
+    "dotenv": "^17.4.2",
+    "framer-motion": "^12.23.12",
+    "jose": "^6.0.13",
+    "lucide-react": "^0.468.0",
+    "mysql2": "^3.14.4",
+    "next": "^16.0.0",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "swiper": "^12.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.30",
+    "@types/react": "^19.1.10",
+    "@types/react-dom": "^19.1.7",
+    "eslint": "^9.34.0",
+    "eslint-config-next": "^16.0.0",
+    "typescript": "^5.9.2"
+  }
+}
