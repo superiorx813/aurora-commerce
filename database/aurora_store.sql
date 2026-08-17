@@ -149,3 +149,4 @@ CREATE TABLE banners (
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 show tables;
+select * from users;
