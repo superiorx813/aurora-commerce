@@ -150,3 +150,155 @@ CREATE TABLE banners (
 );
 show tables;
 select * from users;
+
+-- 17-08-2026
+USE aurora_store;
+USE aurora_store;
+ALTER TABLE products
+    ADD COLUMN product_type VARCHAR(80) NULL AFTER category_id,
+    ADD COLUMN short_description VARCHAR(500) NULL AFTER description,
+    ADD COLUMN sku VARCHAR(100) NULL AFTER slug,
+    ADD COLUMN status ENUM('DRAFT', 'ACTIVE', 'ARCHIVED') NOT NULL DEFAULT 'DRAFT' AFTER featured;
+    
+ CREATE TABLE IF NOT EXISTS product_images (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    product_id BIGINT UNSIGNED NOT NULL,
+    image_url VARCHAR(700) NOT NULL,
+    alt_text VARCHAR(255) NULL,
+    sort_order INT NOT NULL DEFAULT 0,
+    is_primary TINYINT(1) NOT NULL DEFAULT 0,
+    created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+
+    PRIMARY KEY (id),
+
+    INDEX idx_product_images_product_id (product_id),
+
+    CONSTRAINT fk_product_images_product
+        FOREIGN KEY (product_id)
+        REFERENCES products(id)
+        ON DELETE CASCADE
+        ON UPDATE CASCADE
+);   
+
+CREATE TABLE IF NOT EXISTS product_variants (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    product_id BIGINT UNSIGNED NOT NULL,
+
+    sku VARCHAR(100) NOT NULL,
+    barcode VARCHAR(100) NULL,
+
+    price DECIMAL(12,2) NULL,
+    mrp DECIMAL(12,2) NULL,
+
+    stock INT NOT NULL DEFAULT 0,
+
+    option_values JSON NULL,
+
+    image_url VARCHAR(700) NULL,
+
+    weight DECIMAL(10,3) NULL,
+
+    status ENUM('ACTIVE', 'INACTIVE') NOT NULL DEFAULT 'ACTIVE',
+
+    created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP
+        ON UPDATE CURRENT_TIMESTAMP,
+
+    PRIMARY KEY (id),
+
+    UNIQUE KEY uq_product_variant_sku (sku),
+
+    INDEX idx_product_variants_product_id (product_id),
+
+    CONSTRAINT fk_product_variants_product
+        FOREIGN KEY (product_id)
+        REFERENCES products(id)
+        ON DELETE CASCADE
+        ON UPDATE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS product_specifications (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+
+    product_id BIGINT UNSIGNED NOT NULL,
+
+    specification_group VARCHAR(100) NULL,
+    specification_key VARCHAR(150) NOT NULL,
+    specification_value TEXT NULL,
+
+    sort_order INT NOT NULL DEFAULT 0,
+
+    created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+
+    PRIMARY KEY (id),
+
+    INDEX idx_product_specifications_product_id (product_id),
+
+    CONSTRAINT fk_product_specifications_product
+        FOREIGN KEY (product_id)
+        REFERENCES products(id)
+        ON DELETE CASCADE
+        ON UPDATE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS product_shipping (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+
+    product_id BIGINT UNSIGNED NOT NULL,
+
+    weight DECIMAL(10,3) NULL,
+
+    length DECIMAL(10,2) NULL,
+    width DECIMAL(10,2) NULL,
+    height DECIMAL(10,2) NULL,
+
+    free_shipping TINYINT(1) NOT NULL DEFAULT 0,
+    cod_available TINYINT(1) NOT NULL DEFAULT 1,
+
+    return_available TINYINT(1) NOT NULL DEFAULT 1,
+    return_days INT NOT NULL DEFAULT 7,
+
+    created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP
+        ON UPDATE CURRENT_TIMESTAMP,
+
+    PRIMARY KEY (id),
+
+    UNIQUE KEY uq_product_shipping_product_id (product_id),
+
+    CONSTRAINT fk_product_shipping_product
+        FOREIGN KEY (product_id)
+        REFERENCES products(id)
+        ON DELETE CASCADE
+        ON UPDATE CASCADE
+);
+
+USE aurora_store;
+
+CREATE TABLE IF NOT EXISTS product_seo (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+
+    product_id BIGINT UNSIGNED NOT NULL,
+
+    seo_title VARCHAR(255) NULL,
+    meta_description VARCHAR(500) NULL,
+
+    seo_keywords TEXT NULL,
+
+    canonical_url VARCHAR(700) NULL,
+
+    created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP
+        ON UPDATE CURRENT_TIMESTAMP,
+
+    PRIMARY KEY (id),
+
+    UNIQUE KEY uq_product_seo_product_id (product_id),
+
+    CONSTRAINT fk_product_seo_product
+        FOREIGN KEY (product_id)
+        REFERENCES products(id)
+        ON DELETE CASCADE
+        ON UPDATE CASCADE
+);
+SHOW TABLES;
