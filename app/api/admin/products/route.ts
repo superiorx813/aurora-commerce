@@ -4,22 +4,23 @@ import { getSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 
 
-// ---------------------------------------------------------
+// =========================================================
 // GET /api/admin/products
-//
-// Returns products for the admin product management page.
-// Only ADMIN users are allowed.
-// ---------------------------------------------------------
+// Get all admin products
+// =========================================================
 
 export async function GET() {
+
     try {
+
         // -------------------------------------------------
-        // Check logged-in user
+        // Authentication
         // -------------------------------------------------
 
         const user = await getSession();
 
         if (!user) {
+
             return NextResponse.json(
                 {
                     error: "Authentication required."
@@ -32,10 +33,11 @@ export async function GET() {
 
 
         // -------------------------------------------------
-        // Check admin role
+        // Admin authorization
         // -------------------------------------------------
 
         if (user.role !== "ADMIN") {
+
             return NextResponse.json(
                 {
                     error: "Admin access required."
@@ -87,12 +89,19 @@ export async function GET() {
 
 
         // -------------------------------------------------
-        // Return products
+        // Success
         // -------------------------------------------------
 
-        return NextResponse.json({
-            products: rows
-        });
+        return NextResponse.json(
+            {
+                success: true,
+                products: rows
+            },
+            {
+                status: 200
+            }
+        );
+
 
     } catch (error) {
 
@@ -101,8 +110,10 @@ export async function GET() {
             error
         );
 
+
         return NextResponse.json(
             {
+                success: false,
                 error: "Failed to load products."
             },
             {
@@ -113,25 +124,32 @@ export async function GET() {
 }
 
 
-// ---------------------------------------------------------
-// POST /api/admin/products
-//
-// Creates a new product.
-// Only ADMIN users are allowed.
-// ---------------------------------------------------------
 
-export async function POST(request: Request) {
+// =========================================================
+// POST /api/admin/products
+// Create a new product
+// =========================================================
+
+export async function POST(
+    request: Request
+) {
+
+    let connection: any = null;
+
+
     try {
 
         // -------------------------------------------------
-        // Check logged-in user
+        // Authentication
         // -------------------------------------------------
 
         const user = await getSession();
 
         if (!user) {
+
             return NextResponse.json(
                 {
+                    success: false,
                     error: "Authentication required."
                 },
                 {
@@ -142,12 +160,14 @@ export async function POST(request: Request) {
 
 
         // -------------------------------------------------
-        // Check admin role
+        // Admin authorization
         // -------------------------------------------------
 
         if (user.role !== "ADMIN") {
+
             return NextResponse.json(
                 {
+                    success: false,
                     error: "Admin access required."
                 },
                 {
@@ -164,36 +184,120 @@ export async function POST(request: Request) {
         const body = await request.json();
 
 
-        // -------------------------------------------------
-        // Extract product information
-        // -------------------------------------------------
+        /*
+         * Supported frontend structure:
+         *
+         * {
+         *     form: {...},
+         *     image_url: "...",
+         *     gallery_urls: [...],
+         *     specifications: [...]
+         * }
+         *
+         * We also support direct form submission.
+         */
 
-        const {
-            category_id,
-            product_type,
-            name,
-            slug,
-            sku,
-            short_description,
-            description,
-            price,
-            mrp,
-            stock,
-            brand,
-            image_url,
-            gallery_json,
-            featured,
-            status
-        } = body;
+        const form =
+            body?.form ||
+            body ||
+            {};
 
 
         // -------------------------------------------------
-        // Basic validation
+        // Additional product data
         // -------------------------------------------------
 
-        if (!name || !String(name).trim()) {
+        const imageUrl =
+            body?.image_url ||
+            form?.image_url ||
+            null;
+
+
+        const galleryUrls =
+            Array.isArray(body?.gallery_urls)
+                ? body.gallery_urls
+                : Array.isArray(form?.gallery_urls)
+                    ? form.gallery_urls
+                    : [];
+
+
+        const specifications =
+            Array.isArray(body?.specifications)
+                ? body.specifications
+                : Array.isArray(form?.specifications)
+                    ? form.specifications
+                    : [];
+
+
+        // -------------------------------------------------
+        // Extract fields
+        // -------------------------------------------------
+
+        const categoryId =
+            form.category_id;
+
+
+        const productType =
+            form.product_type;
+
+
+        const name =
+            form.name;
+
+
+        const brand =
+            form.brand;
+
+
+        const description =
+            form.description;
+
+
+        const shortDescription =
+            form.short_description;
+
+
+        const sku =
+            form.sku;
+
+
+        const price =
+            form.price;
+
+
+        const mrp =
+            form.mrp;
+
+
+        const stock =
+            form.stock;
+
+
+        const featured =
+            form.featured;
+
+
+        const status =
+            form.status;
+
+
+        // =================================================
+        // VALIDATION
+        // =================================================
+
+        // -------------------------------------------------
+        // Product name
+        // -------------------------------------------------
+
+        if (
+            name === undefined ||
+            name === null ||
+            !String(name).trim()
+        ) {
+
             return NextResponse.json(
                 {
+                    success: false,
                     error: "Product name is required."
                 },
                 {
@@ -203,34 +307,25 @@ export async function POST(request: Request) {
         }
 
 
-        if (!slug || !String(slug).trim()) {
+        // -------------------------------------------------
+        // Generate base slug
+        // -------------------------------------------------
+
+        const baseSlug =
+            String(name)
+                .trim()
+                .toLowerCase()
+                .replace(/[^a-z0-9]+/g, "-")
+                .replace(/^-+|-+$/g, "");
+
+
+        if (!baseSlug) {
+
             return NextResponse.json(
                 {
-                    error: "Product slug is required."
-                },
-                {
-                    status: 400
-                }
-            );
-        }
-
-
-        if (price === undefined || price === null || price === "") {
-            return NextResponse.json(
-                {
-                    error: "Selling price is required."
-                },
-                {
-                    status: 400
-                }
-            );
-        }
-
-
-        if (mrp === undefined || mrp === null || mrp === "") {
-            return NextResponse.json(
-                {
-                    error: "MRP is required."
+                    success: false,
+                    error:
+                        "Unable to generate product slug."
                 },
                 {
                     status: 400
@@ -240,11 +335,62 @@ export async function POST(request: Request) {
 
 
         // -------------------------------------------------
-        // Convert numeric values
+        // Selling price
         // -------------------------------------------------
 
-        const numericPrice = Number(price);
-        const numericMrp = Number(mrp);
+        if (
+            price === undefined ||
+            price === null ||
+            price === ""
+        ) {
+
+            return NextResponse.json(
+                {
+                    success: false,
+                    error:
+                        "Selling price is required."
+                },
+                {
+                    status: 400
+                }
+            );
+        }
+
+
+        // -------------------------------------------------
+        // MRP
+        // -------------------------------------------------
+
+        if (
+            mrp === undefined ||
+            mrp === null ||
+            mrp === ""
+        ) {
+
+            return NextResponse.json(
+                {
+                    success: false,
+                    error:
+                        "MRP is required."
+                },
+                {
+                    status: 400
+                }
+            );
+        }
+
+
+        // =================================================
+        // NUMBER CONVERSION
+        // =================================================
+
+        const numericPrice =
+            Number(price);
+
+
+        const numericMrp =
+            Number(mrp);
+
 
         const numericStock =
             stock === undefined ||
@@ -254,14 +400,20 @@ export async function POST(request: Request) {
                 : Number(stock);
 
 
-        // -------------------------------------------------
-        // Validate numbers
-        // -------------------------------------------------
+        // =================================================
+        // NUMBER VALIDATION
+        // =================================================
 
-        if (!Number.isFinite(numericPrice) || numericPrice < 0) {
+        if (
+            !Number.isFinite(numericPrice) ||
+            numericPrice < 0
+        ) {
+
             return NextResponse.json(
                 {
-                    error: "Selling price must be a valid positive number."
+                    success: false,
+                    error:
+                        "Selling price must be a valid number."
                 },
                 {
                     status: 400
@@ -270,10 +422,16 @@ export async function POST(request: Request) {
         }
 
 
-        if (!Number.isFinite(numericMrp) || numericMrp < 0) {
+        if (
+            !Number.isFinite(numericMrp) ||
+            numericMrp < 0
+        ) {
+
             return NextResponse.json(
                 {
-                    error: "MRP must be a valid positive number."
+                    success: false,
+                    error:
+                        "MRP must be a valid number."
                 },
                 {
                     status: 400
@@ -283,9 +441,12 @@ export async function POST(request: Request) {
 
 
         if (numericMrp < numericPrice) {
+
             return NextResponse.json(
                 {
-                    error: "MRP cannot be lower than the selling price."
+                    success: false,
+                    error:
+                        "MRP cannot be lower than the selling price."
                 },
                 {
                     status: 400
@@ -294,10 +455,16 @@ export async function POST(request: Request) {
         }
 
 
-        if (!Number.isInteger(numericStock) || numericStock < 0) {
+        if (
+            !Number.isInteger(numericStock) ||
+            numericStock < 0
+        ) {
+
             return NextResponse.json(
                 {
-                    error: "Stock must be a valid whole number."
+                    success: false,
+                    error:
+                        "Stock must be a valid whole number."
                 },
                 {
                     status: 400
@@ -306,103 +473,50 @@ export async function POST(request: Request) {
         }
 
 
-        // -------------------------------------------------
-        // Check SKU
-        // -------------------------------------------------
-
-        const cleanSku =
-            sku && String(sku).trim()
-                ? String(sku).trim()
-                : null;
-
-
-        if (cleanSku) {
-
-            const [existingSku] = await db.execute(
-                `
-                    SELECT id
-                    FROM products
-                    WHERE sku = ?
-                    LIMIT 1
-                `,
-                [cleanSku]
-            );
-
-
-            if ((existingSku as any[]).length > 0) {
-                return NextResponse.json(
-                    {
-                        error: "A product with this SKU already exists."
-                    },
-                    {
-                        status: 409
-                    }
-                );
-            }
-        }
-
-
-        // -------------------------------------------------
-        // Clean slug
-        // -------------------------------------------------
-
-        const cleanSlug = String(slug)
-            .trim()
-            .toLowerCase();
-
-
-        // -------------------------------------------------
-        // Check slug
-        // -------------------------------------------------
-
-        const [existingSlug] = await db.execute(
-            `
-                SELECT id
-                FROM products
-                WHERE slug = ?
-                LIMIT 1
-            `,
-            [cleanSlug]
-        );
-
-
-        if ((existingSlug as any[]).length > 0) {
-            return NextResponse.json(
-                {
-                    error: "A product with this slug already exists."
-                },
-                {
-                    status: 409
-                }
-            );
-        }
-
-
-        // -------------------------------------------------
-        // Prepare optional values
-        //
-        // MySQL2 does not accept undefined.
-        // Use null for empty database values.
-        // -------------------------------------------------
+        // =================================================
+        // CLEAN OPTIONAL VALUES
+        // =================================================
 
         const cleanCategoryId =
-            category_id === undefined ||
-            category_id === null ||
-            category_id === ""
+            categoryId === undefined ||
+            categoryId === null ||
+            categoryId === ""
                 ? null
-                : Number(category_id);
+                : Number(categoryId);
+
+
+        if (
+            cleanCategoryId !== null &&
+            (
+                !Number.isInteger(cleanCategoryId) ||
+                cleanCategoryId <= 0
+            )
+        ) {
+
+            return NextResponse.json(
+                {
+                    success: false,
+                    error:
+                        "Invalid category selected."
+                },
+                {
+                    status: 400
+                }
+            );
+        }
 
 
         const cleanProductType =
-            product_type && String(product_type).trim()
-                ? String(product_type).trim()
+            productType &&
+            String(productType).trim()
+                ? String(productType).trim()
                 : null;
 
 
-        const cleanShortDescription =
-            short_description &&
-            String(short_description).trim()
-                ? String(short_description).trim()
+        const cleanBrand =
+            brand &&
+            String(brand).trim()
+                ? String(brand).trim()
                 : null;
 
 
@@ -413,24 +527,25 @@ export async function POST(request: Request) {
                 : null;
 
 
-        const cleanBrand =
-            brand && String(brand).trim()
-                ? String(brand).trim()
+        const cleanShortDescription =
+            shortDescription &&
+            String(shortDescription).trim()
+                ? String(shortDescription).trim()
+                : null;
+
+
+        const cleanSku =
+            sku &&
+            String(sku).trim()
+                ? String(sku).trim()
                 : null;
 
 
         const cleanImageUrl =
-            image_url && String(image_url).trim()
-                ? String(image_url).trim()
+            imageUrl &&
+            String(imageUrl).trim()
+                ? String(imageUrl).trim()
                 : null;
-
-
-        const cleanGalleryJson =
-            gallery_json === undefined ||
-            gallery_json === null ||
-            gallery_json === ""
-                ? null
-                : gallery_json;
 
 
         const cleanFeatured =
@@ -448,40 +563,324 @@ export async function POST(request: Request) {
                 : "DRAFT";
 
 
-        // -------------------------------------------------
-        // Insert product
-        // -------------------------------------------------
+        // =================================================
+        // UNIQUE SLUG
+        // =================================================
 
-        const [result] = await db.execute(
+        let finalSlug =
+            baseSlug;
+
+
+        let slugCounter =
+            2;
+
+
+        while (true) {
+
+            const [existingSlug] =
+                await db.execute(
+                    `
+                        SELECT id
+                        FROM products
+                        WHERE slug = ?
+                        LIMIT 1
+                    `,
+                    [finalSlug]
+                );
+
+
+            if (
+                (existingSlug as any[]).length === 0
+            ) {
+
+                break;
+            }
+
+
+            finalSlug =
+                `${baseSlug}-${slugCounter}`;
+
+
+            slugCounter++;
+        }
+
+
+        // =================================================
+        // UNIQUE SKU
+        // =================================================
+
+        if (cleanSku) {
+
+            const [existingSku] =
+                await db.execute(
+                    `
+                        SELECT id
+                        FROM products
+                        WHERE sku = ?
+                        LIMIT 1
+                    `,
+                    [cleanSku]
+                );
+
+
+            if (
+                (existingSku as any[]).length > 0
+            ) {
+
+                return NextResponse.json(
+                    {
+                        success: false,
+                        error:
+                            "A product with this SKU already exists."
+                    },
+                    {
+                        status: 409
+                    }
+                );
+            }
+        }
+
+
+        // =================================================
+        // DATABASE CONNECTION
+        // =================================================
+
+        connection =
+            await db.getConnection();
+
+
+        // =================================================
+        // TRANSACTION
+        // =================================================
+
+        await connection.beginTransaction();
+
+
+        // =================================================
+        // GALLERY JSON
+        // =================================================
+
+        const validGalleryUrls =
+            galleryUrls
+                .filter(
+                    (url: unknown) =>
+                        url !== null &&
+                        url !== undefined &&
+                        String(url).trim()
+                )
+                .map(
+                    (url: unknown) =>
+                        String(url).trim()
+                );
+
+
+        const galleryJson =
+            validGalleryUrls.length > 0
+                ? JSON.stringify(validGalleryUrls)
+                : null;
+
+
+        // =================================================
+        // INSERT PRODUCT
+        // =================================================
+
+        const [productResult] =
+            await connection.execute(
+                `
+                    INSERT INTO products (
+                        category_id,
+                        product_type,
+                        name,
+                        slug,
+                        sku,
+                        short_description,
+                        description,
+                        price,
+                        mrp,
+                        stock,
+                        rating,
+                        review_count,
+                        brand,
+                        image_url,
+                        gallery_json,
+                        featured,
+                        status
+                    )
+                    VALUES (
+                        ?,
+                        ?,
+                        ?,
+                        ?,
+                        ?,
+                        ?,
+                        ?,
+                        ?,
+                        ?,
+                        ?,
+                        ?,
+                        ?,
+                        ?,
+                        ?,
+                        ?,
+                        ?,
+                        ?
+                    )
+                `,
+                [
+                    cleanCategoryId,
+                    cleanProductType,
+                    String(name).trim(),
+                    finalSlug,
+                    cleanSku,
+                    cleanShortDescription,
+                    cleanDescription,
+                    numericPrice,
+                    numericMrp,
+                    numericStock,
+                    0,
+                    0,
+                    cleanBrand,
+                    cleanImageUrl,
+                    galleryJson,
+                    cleanFeatured,
+                    cleanStatus
+                ]
+            );
+
+
+        const productId =
+            (productResult as any).insertId;
+
+
+        // =================================================
+        // PRODUCT GALLERY
+        // =================================================
+
+        if (
+            validGalleryUrls.length > 0
+        ) {
+
+            for (
+                let index = 0;
+                index < validGalleryUrls.length;
+                index++
+            ) {
+
+                const url =
+                    validGalleryUrls[index];
+
+
+                await connection.execute(
+                    `
+                        INSERT INTO product_images (
+                            product_id,
+                            image_url,
+                            alt_text,
+                            sort_order,
+                            is_primary
+                        )
+                        VALUES (
+                            ?,
+                            ?,
+                            ?,
+                            ?,
+                            ?
+                        )
+                    `,
+                    [
+                        productId,
+                        url,
+                        String(name).trim(),
+                        index,
+                        index === 0 ? 1 : 0
+                    ]
+                );
+            }
+        }
+
+
+        // =================================================
+        // SHIPPING
+        // =================================================
+
+        const weight =
+            form.weight === "" ||
+            form.weight === undefined ||
+            form.weight === null
+                ? null
+                : Number(form.weight);
+
+
+        const length =
+            form.length === "" ||
+            form.length === undefined ||
+            form.length === null
+                ? null
+                : Number(form.length);
+
+
+        const width =
+            form.width === "" ||
+            form.width === undefined ||
+            form.width === null
+                ? null
+                : Number(form.width);
+
+
+        const height =
+            form.height === "" ||
+            form.height === undefined ||
+            form.height === null
+                ? null
+                : Number(form.height);
+
+
+        const freeShipping =
+            form.free_shipping === true ||
+            form.free_shipping === 1 ||
+            form.free_shipping === "1"
+                ? 1
+                : 0;
+
+
+        const codAvailable =
+            form.cod_available === false ||
+            form.cod_available === 0 ||
+            form.cod_available === "0"
+                ? 0
+                : 1;
+
+
+        const returnAvailable =
+            form.return_available === false ||
+            form.return_available === 0 ||
+            form.return_available === "0"
+                ? 0
+                : 1;
+
+
+        const returnDays =
+            form.return_days === "" ||
+            form.return_days === undefined ||
+            form.return_days === null
+                ? 7
+                : Number(form.return_days);
+
+
+        await connection.execute(
             `
-                INSERT INTO products (
-                    category_id,
-                    product_type,
-                    name,
-                    slug,
-                    sku,
-                    short_description,
-                    description,
-                    price,
-                    mrp,
-                    stock,
-                    rating,
-                    review_count,
-                    brand,
-                    image_url,
-                    gallery_json,
-                    featured,
-                    status
+                INSERT INTO product_shipping (
+                    product_id,
+                    weight,
+                    length,
+                    width,
+                    height,
+                    free_shipping,
+                    cod_available,
+                    return_available,
+                    return_days
                 )
                 VALUES (
-                    ?,
-                    ?,
-                    ?,
-                    ?,
-                    ?,
-                    ?,
-                    ?,
-                    ?,
                     ?,
                     ?,
                     ?,
@@ -494,50 +893,204 @@ export async function POST(request: Request) {
                 )
             `,
             [
-                cleanCategoryId,
-                cleanProductType,
-                String(name).trim(),
-                cleanSlug,
-                cleanSku,
-                cleanShortDescription,
-                cleanDescription,
-                numericPrice,
-                numericMrp,
-                numericStock,
-                0,
-                0,
-                cleanBrand,
-                cleanImageUrl,
-                cleanGalleryJson,
-                cleanFeatured,
-                cleanStatus
+                productId,
+                weight,
+                length,
+                width,
+                height,
+                freeShipping,
+                codAvailable,
+                returnAvailable,
+                returnDays
             ]
         );
 
 
-        // -------------------------------------------------
-        // Get newly-created product ID
-        // -------------------------------------------------
+        // =================================================
+        // SPECIFICATIONS
+        // =================================================
 
-        const productId = (result as any).insertId;
+        if (
+            specifications.length > 0
+        ) {
+
+            let sortOrder =
+                0;
 
 
-        // -------------------------------------------------
-        // Return success
-        // -------------------------------------------------
+            for (
+                const specification of specifications
+            ) {
+
+                const group =
+                    specification?.specification_group;
+
+
+                const key =
+                    specification?.specification_key;
+
+
+                const value =
+                    specification?.specification_value;
+
+
+                if (
+                    !key ||
+                    !String(key).trim()
+                ) {
+
+                    continue;
+                }
+
+
+                await connection.execute(
+                    `
+                        INSERT INTO product_specifications (
+                            product_id,
+                            specification_group,
+                            specification_key,
+                            specification_value,
+                            sort_order
+                        )
+                        VALUES (
+                            ?,
+                            ?,
+                            ?,
+                            ?,
+                            ?
+                        )
+                    `,
+                    [
+                        productId,
+
+                        group &&
+                        String(group).trim()
+                            ? String(group).trim()
+                            : null,
+
+                        String(key).trim(),
+
+                        value === undefined ||
+                        value === null ||
+                        value === ""
+                            ? null
+                            : String(value),
+
+                        sortOrder
+                    ]
+                );
+
+
+                sortOrder++;
+            }
+        }
+
+
+        // =================================================
+        // SEO
+        // =================================================
+
+        const seoTitle =
+            form.seo_title &&
+            String(form.seo_title).trim()
+                ? String(form.seo_title).trim()
+                : null;
+
+
+        const metaDescription =
+            form.meta_description &&
+            String(form.meta_description).trim()
+                ? String(form.meta_description).trim()
+                : null;
+
+
+        const seoKeywords =
+            form.seo_keywords &&
+            String(form.seo_keywords).trim()
+                ? String(form.seo_keywords).trim()
+                : null;
+
+
+        const canonicalUrl =
+            form.canonical_url &&
+            String(form.canonical_url).trim()
+                ? String(form.canonical_url).trim()
+                : null;
+
+
+        await connection.execute(
+            `
+                INSERT INTO product_seo (
+                    product_id,
+                    seo_title,
+                    meta_description,
+                    seo_keywords,
+                    canonical_url
+                )
+                VALUES (
+                    ?,
+                    ?,
+                    ?,
+                    ?,
+                    ?
+                )
+            `,
+            [
+                productId,
+                seoTitle,
+                metaDescription,
+                seoKeywords,
+                canonicalUrl
+            ]
+        );
+
+
+        // =================================================
+        // COMMIT
+        // =================================================
+
+        await connection.commit();
+
+
+        // =================================================
+        // SUCCESS
+        // =================================================
 
         return NextResponse.json(
             {
                 success: true,
-                message: "Product created successfully.",
-                productId
+                message:
+                    "Product created successfully.",
+                productId,
+                slug: finalSlug
             },
             {
                 status: 201
             }
         );
 
+
     } catch (error: any) {
+
+        // -------------------------------------------------
+        // Rollback
+        // -------------------------------------------------
+
+        if (connection) {
+
+            try {
+
+                await connection.rollback();
+
+            } catch (rollbackError) {
+
+                console.error(
+                    "PRODUCT CREATE ROLLBACK ERROR:",
+                    rollbackError
+                );
+            }
+        }
+
 
         console.error(
             "ADMIN PRODUCTS POST ERROR:",
@@ -546,16 +1099,69 @@ export async function POST(request: Request) {
 
 
         // -------------------------------------------------
-        // Handle duplicate database errors
+        // Duplicate
         // -------------------------------------------------
 
-        if (error?.code === "ER_DUP_ENTRY") {
+        if (
+            error?.code ===
+            "ER_DUP_ENTRY"
+        ) {
+
             return NextResponse.json(
                 {
-                    error: "A product with the same unique value already exists."
+                    success: false,
+                    error:
+                        "A product with the same unique value already exists."
                 },
                 {
                     status: 409
+                }
+            );
+        }
+
+
+        // -------------------------------------------------
+        // Unknown column
+        // -------------------------------------------------
+
+        if (
+            error?.code ===
+            "ER_BAD_FIELD_ERROR"
+        ) {
+
+            return NextResponse.json(
+                {
+                    success: false,
+                    error:
+                        `Database column error: ${
+                            error.sqlMessage ||
+                            "Unknown column."
+                        }`
+                },
+                {
+                    status: 500
+                }
+            );
+        }
+
+
+        // -------------------------------------------------
+        // Foreign key
+        // -------------------------------------------------
+
+        if (
+            error?.code ===
+            "ER_NO_REFERENCED_ROW_2"
+        ) {
+
+            return NextResponse.json(
+                {
+                    success: false,
+                    error:
+                        "The selected category does not exist."
+                },
+                {
+                    status: 400
                 }
             );
         }
@@ -567,11 +1173,21 @@ export async function POST(request: Request) {
 
         return NextResponse.json(
             {
-                error: "Failed to create product."
+                success: false,
+                error:
+                    error?.message ||
+                    "Failed to create product."
             },
             {
                 status: 500
             }
         );
+
+
+    } finally {
+
+        if (connection) {
+            connection.release();
+        }
     }
 }
