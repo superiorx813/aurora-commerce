@@ -5,60 +5,38 @@ import { getSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { money } from "@/lib/utils";
 
-import DeleteProductButton
-    from "@/components/admin/DeleteProductButton";
+import DeleteProductButton from "@/components/admin/DeleteProductButton";
 
 export const dynamic = "force-dynamic";
 
-
-/* =========================================================
-   PRODUCT TYPE
-   ========================================================= */
+type SearchParams = {
+    q?: string;
+    category?: string;
+    brand?: string;
+    status?: string;
+    page?: string;
+    perPage?: string;
+};
 
 type Product = {
     id: number;
-
     category_id: number | null;
-
-    product_type: string | null;
-
-    name: string;
-
-    slug: string;
-
-    sku: string | null;
-
-    short_description: string | null;
-
-    description: string | null;
-
-    price: number;
-
-    mrp: number;
-
-    stock: number;
-
-    rating: number;
-
-    review_count: number;
-
-    brand: string | null;
-
-    image_url: string | null;
-
-    featured: number;
-
-    status: "DRAFT" | "ACTIVE" | "ARCHIVED";
-
     category_name: string | null;
-
     category_slug: string | null;
+    name: string;
+    slug: string;
+    sku: string | null;
+    description: string | null;
+    price: number | string;
+    mrp: number | string;
+    stock: number;
+    rating: number | string;
+    review_count: number;
+    brand: string | null;
+    image_url: string | null;
+    featured: number | boolean;
+    status: string;
 };
-
-
-/* =========================================================
-   CATEGORY TYPE
-   ========================================================= */
 
 type Category = {
     id: number;
@@ -66,187 +44,234 @@ type Category = {
     slug: string;
 };
 
-
-/* =========================================================
-   GET CATEGORIES
-   ========================================================= */
-
-async function getCategories(): Promise<Category[]> {
-
-    const [rows] = await db.query(`
-        SELECT
-            id,
-            name,
-            slug
-        FROM categories
-        ORDER BY name ASC
-    `);
-
-    return rows as Category[];
-}
-
-
-/* =========================================================
-   GET BRANDS
-   ========================================================= */
-
-async function getBrands(): Promise<string[]> {
-
-    const [rows] = await db.query(`
-        SELECT DISTINCT brand
-        FROM products
-        WHERE brand IS NOT NULL
-          AND TRIM(brand) <> ''
-        ORDER BY brand ASC
-    `);
-
-    return (rows as { brand: string }[])
-        .map(row => row.brand);
-}
-
-
-/* =========================================================
-   GET PRODUCTS
-   WITH SERVER-SIDE PAGINATION
-   ========================================================= */
-
-async function getProducts({
-    search,
-    category,
-    brand,
-    page,
-    limit
-}: {
-    search: string;
-    category: string;
+type Brand = {
     brand: string;
-    page: number;
-    limit: number;
-}): Promise<{
-    products: Product[];
-    total: number;
-}> {
+};
 
-    /* -------------------------------------------------------
-       BASE WHERE QUERY
-       ------------------------------------------------------- */
+const DEFAULT_PAGE_SIZE = 10;
 
-    let whereSql = `
-        FROM products p
+const PAGE_SIZE_OPTIONS = [
+    10,
+    20,
+    30,
+    50
+];
 
-        LEFT JOIN categories c
-            ON c.id = p.category_id
+function getNumber(value: unknown, fallback = 0): number {
+    const number = Number(value);
 
-        WHERE 1 = 1
-    `;
+    return Number.isFinite(number)
+        ? number
+        : fallback;
+}
 
+function getPageNumber(value?: string): number {
+    const page = Number(value);
 
-    const params: (string | number)[] = [];
-
-
-    /* -------------------------------------------------------
-       SEARCH
-       ------------------------------------------------------- */
-
-    if (search) {
-
-        whereSql += `
-            AND (
-                p.name LIKE ?
-                OR p.sku LIKE ?
-                OR p.brand LIKE ?
-            )
-        `;
-
-        const searchValue = `%${search}%`;
-
-        params.push(
-            searchValue,
-            searchValue,
-            searchValue
-        );
+    if (!Number.isFinite(page) || page < 1) {
+        return 1;
     }
 
+    return Math.floor(page);
+}
 
-    /* -------------------------------------------------------
-       CATEGORY
-       ------------------------------------------------------- */
+function getPageSize(value?: string): number {
+    const pageSize = Number(value);
 
-    if (category) {
+    if (PAGE_SIZE_OPTIONS.includes(pageSize)) {
+        return pageSize;
+    }
 
-        const categoryId =
-            Number(category);
+    return DEFAULT_PAGE_SIZE;
+}
 
+function getStatusBadgeClass(status: string) {
+    switch (status.toLowerCase()) {
+        case "active":
+            return "bg-success-subtle text-success";
 
-        if (
-            Number.isInteger(categoryId) &&
-            categoryId > 0
-        ) {
+        case "draft":
+            return "bg-warning-subtle text-warning-emphasis";
 
-            whereSql += `
-                AND p.category_id = ?
-            `;
+        case "inactive":
+            return "bg-secondary-subtle text-secondary";
 
-            params.push(categoryId);
+        case "out_of_stock":
+            return "bg-danger-subtle text-danger";
+
+        default:
+            return "bg-light text-dark";
+    }
+}
+
+function getCategoryBadgeClass(category: string | null) {
+    switch ((category || "").toLowerCase()) {
+        case "fashion":
+            return "bg-primary-subtle text-primary";
+
+        case "electronics":
+            return "bg-info-subtle text-info-emphasis";
+
+        case "shoes":
+            return "bg-warning-subtle text-warning-emphasis";
+
+        case "beauty":
+            return "bg-danger-subtle text-danger";
+
+        case "grocery":
+            return "bg-success-subtle text-success";
+
+        case "home":
+            return "bg-secondary-subtle text-secondary";
+
+        default:
+            return "bg-dark-subtle text-dark";
+    }
+}
+
+function getStockBadgeClass(stock: number) {
+    if (stock <= 0) {
+        return "bg-danger text-white";
+    }
+
+    if (stock <= 10) {
+        return "bg-primary text-white";
+    }
+
+    return "bg-success text-white";
+}
+
+export default async function AdminProductsPage({
+    searchParams
+}: {
+    searchParams: Promise<SearchParams>;
+}) {
+    const session = await getSession();
+
+    if (!session) {
+        redirect("/login");
+    }
+
+    if (session.role !== "ADMIN") {
+        redirect("/");
+    }
+
+    const params = await searchParams;
+
+    const search = (params.q || "").trim();
+    const category = (params.category || "").trim();
+    const brand = (params.brand || "").trim();
+    const status = (params.status || "").trim();
+
+    const currentPage = getPageNumber(params.page);
+    const pageSize = getPageSize(params.perPage);
+
+    const searchLike = `%${search}%`;
+
+    let connection: any = null;
+
+    try {
+        connection = await db.getConnection();
+
+        const [categoryRows] = await connection.query(`
+            SELECT
+                id,
+                name,
+                slug
+            FROM categories
+            ORDER BY name ASC
+        `);
+
+        const categories = categoryRows as Category[];
+
+        const [brandRows] = await connection.query(`
+            SELECT DISTINCT
+                brand
+            FROM products
+            WHERE brand IS NOT NULL
+              AND TRIM(brand) <> ''
+            ORDER BY brand ASC
+        `);
+
+        const brands = brandRows as Brand[];
+
+        const whereConditions: string[] = [];
+        const whereValues: any[] = [];
+
+        if (search) {
+            whereConditions.push(`
+                (
+                    p.name LIKE ?
+                    OR p.slug LIKE ?
+                    OR p.brand LIKE ?
+                    OR p.description LIKE ?
+                )
+            `);
+
+            whereValues.push(
+                searchLike,
+                searchLike,
+                searchLike,
+                searchLike
+            );
         }
-    }
 
+        if (category) {
+            whereConditions.push("p.category_id = ?");
+            whereValues.push(Number(category));
+        }
 
-    /* -------------------------------------------------------
-       BRAND
-       ------------------------------------------------------- */
+        if (brand) {
+            whereConditions.push("p.brand = ?");
+            whereValues.push(brand);
+        }
 
-    if (brand) {
+        if (status) {
+            whereConditions.push("p.status = ?");
+            whereValues.push(status);
+        }
 
-        whereSql += `
-            AND p.brand = ?
-        `;
+        const whereSQL =
+            whereConditions.length > 0
+                ? `WHERE ${whereConditions.join(" AND ")}`
+                : "";
 
-        params.push(brand);
-    }
-
-
-    /* -------------------------------------------------------
-       GET TOTAL MATCHING PRODUCTS
-       ------------------------------------------------------- */
-
-    const [countRows] = await db.query(
-        `
+        const [countRows] = await connection.query(
+            `
             SELECT COUNT(*) AS total
-            ${whereSql}
-        `,
-        params
-    );
-
-
-    const total =
-        Number(
-            (countRows as { total: number }[])[0]?.total || 0
+            FROM products p
+            ${whereSQL}
+            `,
+            whereValues
         );
 
+        const totalProducts = getNumber(
+            (countRows as any[])[0]?.total,
+            0
+        );
 
-    /* -------------------------------------------------------
-       CALCULATE OFFSET
-       ------------------------------------------------------- */
+        const totalPages = Math.max(
+            1,
+            Math.ceil(totalProducts / pageSize)
+        );
 
-    const offset =
-        (page - 1) * limit;
+        const safePage = Math.min(
+            Math.max(currentPage, 1),
+            totalPages
+        );
 
+        const offset = (safePage - 1) * pageSize;
 
-    /* -------------------------------------------------------
-       GET PRODUCTS
-       ------------------------------------------------------- */
-
-    const [rows] = await db.query(
-        `
+        const [productRows] = await connection.query(
+            `
             SELECT
                 p.id,
                 p.category_id,
-                p.product_type,
+                c.name AS category_name,
+                c.slug AS category_slug,
                 p.name,
                 p.slug,
                 p.sku,
-                p.short_description,
                 p.description,
                 p.price,
                 p.mrp,
@@ -256,1432 +281,825 @@ async function getProducts({
                 p.brand,
                 p.image_url,
                 p.featured,
-                p.status,
-
-                c.name AS category_name,
-                c.slug AS category_slug
-
-            ${whereSql}
-
-            ORDER BY p.created_at DESC
-
+                p.status
+            FROM products p
+            LEFT JOIN categories c
+                ON c.id = p.category_id
+            ${whereSQL}
+            ORDER BY p.id DESC
             LIMIT ? OFFSET ?
-        `,
-        [
-            ...params,
-            limit,
-            offset
-        ]
-    );
-
-
-    return {
-        products: rows as Product[],
-        total
-    };
-}
-
-
-/* =========================================================
-   BUILD PAGINATION URL
-   ========================================================= */
-
-function buildPageUrl({
-    search,
-    category,
-    brand,
-    page,
-    limit
-}: {
-    search: string;
-    category: string;
-    brand: string;
-    page: number;
-    limit: number;
-}) {
-
-    const query =
-        new URLSearchParams();
-
-
-    if (search) {
-
-        query.set(
-            "search",
-            search
+            `,
+            [
+                ...whereValues,
+                pageSize,
+                offset
+            ]
         );
-    }
 
+        const products = productRows as Product[];
 
-    if (category) {
+        const [statsRows] = await connection.query(`
+            SELECT
+                COUNT(*) AS total_products,
+                SUM(
+                    CASE
+                        WHEN status = 'active'
+                        THEN 1
+                        ELSE 0
+                    END
+                ) AS active_products,
+                SUM(
+                    CASE
+                        WHEN stock <= 0
+                        THEN 1
+                        ELSE 0
+                    END
+                ) AS out_of_stock,
+                SUM(
+                    CASE
+                        WHEN featured = 1
+                        THEN 1
+                        ELSE 0
+                    END
+                ) AS featured_products
+            FROM products
+        `);
 
-        query.set(
-            "category",
-            category
+        const stats = (statsRows as any[])[0] || {};
+
+        const totalProductCount = getNumber(
+            stats.total_products,
+            0
         );
-    }
 
-
-    if (brand) {
-
-        query.set(
-            "brand",
-            brand
+        const activeProductCount = getNumber(
+            stats.active_products,
+            0
         );
-    }
 
-
-    query.set(
-        "page",
-        String(page)
-    );
-
-
-    query.set(
-        "limit",
-        String(limit)
-    );
-
-
-    return `/admin/products?${query.toString()}`;
-}
-
-
-/* =========================================================
-   CREATE PAGE NUMBER LIST
-   ========================================================= */
-
-function getPaginationPages(
-    currentPage: number,
-    totalPages: number
-): (number | "ellipsis")[] {
-
-    /* -------------------------------------------------------
-       SMALL NUMBER OF PAGES
-       ------------------------------------------------------- */
-
-    if (totalPages <= 7) {
-
-        return Array.from(
-            { length: totalPages },
-            (_, index) => index + 1
+        const outOfStockCount = getNumber(
+            stats.out_of_stock,
+            0
         );
-    }
 
+        const featuredProductCount = getNumber(
+            stats.featured_products,
+            0
+        );
 
-    /* -------------------------------------------------------
-       BEGINNING
-       ------------------------------------------------------- */
+        connection.release();
+        connection = null;
 
-    if (currentPage <= 4) {
+        const hasActiveFilters =
+            Boolean(search) ||
+            Boolean(category) ||
+            Boolean(brand) ||
+            Boolean(status) ||
+            Boolean(
+                params.perPage &&
+                Number(params.perPage) !== DEFAULT_PAGE_SIZE
+            );
 
-        return [
-            1,
-            2,
-            3,
-            4,
-            5,
-            "ellipsis",
-            totalPages
-        ];
-    }
+        function createQueryString(
+            overrides: Record<
+                string,
+                string | number | undefined
+            >
+        ) {
+            const query = new URLSearchParams();
 
+            if (search) {
+                query.set("q", search);
+            }
 
-    /* -------------------------------------------------------
-       END
-       ------------------------------------------------------- */
+            if (category) {
+                query.set("category", category);
+            }
 
-    if (currentPage >= totalPages - 3) {
+            if (brand) {
+                query.set("brand", brand);
+            }
 
-        return [
-            1,
-            "ellipsis",
-            totalPages - 4,
-            totalPages - 3,
-            totalPages - 2,
-            totalPages - 1,
-            totalPages
-        ];
-    }
+            if (status) {
+                query.set("status", status);
+            }
 
+            query.set("perPage", String(pageSize));
 
-    /* -------------------------------------------------------
-       MIDDLE
-       ------------------------------------------------------- */
+            Object.entries(overrides).forEach(
+                ([key, value]) => {
+                    if (
+                        value !== undefined &&
+                        value !== ""
+                    ) {
+                        query.set(key, String(value));
+                    } else {
+                        query.delete(key);
+                    }
+                }
+            );
 
-    return [
-        1,
-        "ellipsis",
-        currentPage - 1,
-        currentPage,
-        currentPage + 1,
-        "ellipsis",
-        totalPages
-    ];
-}
-
-
-/* =========================================================
-   STATUS BADGE
-   ========================================================= */
-
-function StatusBadge({
-    status
-}: {
-    status: Product["status"];
-}) {
-
-    if (status === "ACTIVE") {
+            return query.toString();
+        }
 
         return (
-            <span className="badge rounded-pill text-bg-success">
-                Active
-            </span>
-        );
-    }
-
-
-    if (status === "ARCHIVED") {
-
-        return (
-            <span className="badge rounded-pill text-bg-secondary">
-                Archived
-            </span>
-        );
-    }
-
-
-    return (
-        <span className="badge rounded-pill text-bg-warning">
-            Draft
-        </span>
-    );
-}
-
-
-/* =========================================================
-   ADMIN PRODUCTS PAGE
-   ========================================================= */
-
-export default async function AdminProductsPage(
-    {
-        searchParams
-    }: {
-        searchParams: Promise<{
-            search?: string;
-            category?: string;
-            brand?: string;
-            page?: string;
-            limit?: string;
-        }>;
-    }
-) {
-
-    /* -------------------------------------------------------
-       CHECK LOGIN
-       ------------------------------------------------------- */
-
-    const user = await getSession();
-
-
-    if (!user) {
-
-        redirect("/account");
-    }
-
-
-    /* -------------------------------------------------------
-       CHECK ADMIN
-       ------------------------------------------------------- */
-
-    if (user.role !== "ADMIN") {
-
-        redirect("/");
-    }
-
-
-    /* -------------------------------------------------------
-       READ URL PARAMETERS
-       ------------------------------------------------------- */
-
-    const params =
-        await searchParams;
-
-
-    /* -------------------------------------------------------
-       SEARCH
-       ------------------------------------------------------- */
-
-    const search =
-        typeof params.search === "string"
-            ? params.search.trim()
-            : "";
-
-
-    /* -------------------------------------------------------
-       CATEGORY
-       ------------------------------------------------------- */
-
-    const category =
-        typeof params.category === "string"
-            ? params.category
-            : "";
-
-
-    /* -------------------------------------------------------
-       BRAND
-       ------------------------------------------------------- */
-
-    const brand =
-        typeof params.brand === "string"
-            ? params.brand
-            : "";
-
-
-    /* -------------------------------------------------------
-       PAGE
-       ------------------------------------------------------- */
-
-    const requestedPage =
-        Number(params.page || 1);
-
-
-    const page =
-        Number.isInteger(requestedPage) &&
-        requestedPage > 0
-            ? requestedPage
-            : 1;
-
-
-    /* -------------------------------------------------------
-       PAGE SIZE
-       ------------------------------------------------------- */
-
-    const requestedLimit =
-        Number(params.limit || 10);
-
-
-    const limit =
-        [10, 20, 50].includes(requestedLimit)
-            ? requestedLimit
-            : 10;
-
-
-    /* -------------------------------------------------------
-       LOAD CATEGORIES + BRANDS
-       ------------------------------------------------------- */
-
-    const [
-        categories,
-        brands
-    ] = await Promise.all([
-        getCategories(),
-        getBrands()
-    ]);
-
-
-    /* -------------------------------------------------------
-       FIRST PRODUCT QUERY
-       ------------------------------------------------------- */
-
-    const firstProductResult =
-        await getProducts({
-            search,
-            category,
-            brand,
-            page,
-            limit
-        });
-
-
-    /* -------------------------------------------------------
-       TOTAL PRODUCTS
-       ------------------------------------------------------- */
-
-    const totalProducts =
-        firstProductResult.total;
-
-
-    /* -------------------------------------------------------
-       TOTAL PAGES
-       ------------------------------------------------------- */
-
-    const totalPages =
-        Math.max(
-            1,
-            Math.ceil(
-                totalProducts / limit
-            )
-        );
-
-
-    /* -------------------------------------------------------
-       SAFE CURRENT PAGE
-       ------------------------------------------------------- */
-
-    const currentPage =
-        Math.min(
-            page,
-            totalPages
-        );
-
-
-    /* -------------------------------------------------------
-       GET PRODUCTS
-       ------------------------------------------------------- */
-
-    const productResult =
-        currentPage === page
-            ? firstProductResult
-            : await getProducts({
-                search,
-                category,
-                brand,
-                page: currentPage,
-                limit
-            });
-
-
-    const products =
-        productResult.products;
-
-
-    /* -------------------------------------------------------
-       RESULT RANGE
-       ------------------------------------------------------- */
-
-    const startItem =
-        totalProducts === 0
-            ? 0
-            : (currentPage - 1) * limit + 1;
-
-
-    const endItem =
-        Math.min(
-            currentPage * limit,
-            totalProducts
-        );
-
-
-    /* -------------------------------------------------------
-       PAGINATION PAGE NUMBERS
-       ------------------------------------------------------- */
-
-    const paginationPages =
-        getPaginationPages(
-            currentPage,
-            totalPages
-        );
-
-
-    /* -------------------------------------------------------
-       STATISTICS
-       ------------------------------------------------------- */
-
-    const activeProducts =
-        products.filter(
-            product =>
-                product.status === "ACTIVE"
-        ).length;
-
-
-    const draftProducts =
-        products.filter(
-            product =>
-                product.status === "DRAFT"
-        ).length;
-
-
-    const lowStockProducts =
-        products.filter(
-            product =>
-                Number(product.stock) < 10
-        ).length;
-
-
-    /* -------------------------------------------------------
-       FILTER STATE
-       ------------------------------------------------------- */
-
-    const hasFilters =
-        Boolean(
-            search ||
-            category ||
-            brand
-        );
-
-
-    /* =======================================================
-       PAGE
-       ======================================================= */
-
-    return (
-
-        <main className="aurora-admin-products py-4 py-lg-5">
-
-            <div className="container-fluid px-3 px-lg-4">
-
-
-                {/* =================================================
-                   HEADER
-                   ================================================= */}
-
-                <div
-                    className="
-                        d-flex
-                        flex-column
-                        flex-lg-row
-                        justify-content-between
-                        align-items-lg-end
-                        gap-4
-                        mb-4
-                    "
-                >
-
+            <div className="container-fluid bg-light min-vh-100 py-4">
+                <div className="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-3 mb-4">
                     <div>
-
-                        <div className="text-uppercase small fw-bold text-primary mb-2">
-                            Aurora Catalog
+                        <div className="text-primary fw-bold small text-uppercase mb-1">
+                            Aurora Commerce
                         </div>
-
-
-                        <h1 className="display-6 fw-bold mb-2">
-                            Product Management
+                        <h1 className="fw-bold mb-1">
+                            Products
                         </h1>
-
-
-                        <p className="text-secondary mb-0">
-                            Manage your Aurora storefront products,
-                            inventory and catalog.
+                        <p className="text-muted mb-0">
+                            Manage your products, inventory,
+                            pricing and product information.
                         </p>
-
                     </div>
 
-
-                    <div className="d-flex flex-wrap gap-2">
-
-                        <Link
-                            href="/admin"
-                            className="btn btn-light border rounded-3 px-4"
-                        >
-                            ← Dashboard
-                        </Link>
-
-
-                        <Link
-                            href="/admin/products/new"
-                            className="btn btn-primary rounded-3 px-4 fw-semibold"
-                        >
-                            + Create Product
-                        </Link>
-
-                    </div>
-
+                    <Link
+                        href="/admin/products/new"
+                        className="btn btn-dark px-4 py-2 rounded-3 fw-semibold"
+                    >
+                        + Add Product
+                    </Link>
                 </div>
-
-
-                {/* =================================================
-                   STATISTICS
-                   ================================================= */}
 
                 <div className="row g-3 mb-4">
-
-
-                    {/* TOTAL */}
-
                     <div className="col-12 col-sm-6 col-xl-3">
-
                         <div className="card border-0 shadow-sm rounded-4 h-100">
-
                             <div className="card-body p-4">
-
                                 <div className="d-flex justify-content-between align-items-start">
-
                                     <div>
-
-                                        <div className="text-secondary small mb-2">
+                                        <div className="small text-muted mb-2">
                                             Total Products
                                         </div>
-
-                                        <div className="fs-2 fw-bold">
-                                            {totalProducts}
+                                        <div className="fs-3 fw-bold">
+                                            {totalProductCount}
                                         </div>
-
                                     </div>
-
-
-                                    <div className="bg-primary bg-opacity-10 text-primary rounded-3 p-3">
+                                    <div className="rounded-3 bg-primary-subtle text-primary p-3 fw-bold">
                                         P
                                     </div>
-
                                 </div>
-
                             </div>
-
                         </div>
-
                     </div>
 
-
-                    {/* ACTIVE */}
-
                     <div className="col-12 col-sm-6 col-xl-3">
-
                         <div className="card border-0 shadow-sm rounded-4 h-100">
-
                             <div className="card-body p-4">
-
                                 <div className="d-flex justify-content-between align-items-start">
-
                                     <div>
-
-                                        <div className="text-secondary small mb-2">
+                                        <div className="small text-muted mb-2">
                                             Active Products
                                         </div>
-
-                                        <div className="fs-2 fw-bold text-success">
-                                            {activeProducts}
+                                        <div className="fs-3 fw-bold text-success">
+                                            {activeProductCount}
                                         </div>
-
                                     </div>
-
-
-                                    <div className="bg-success bg-opacity-10 text-success rounded-3 p-3">
+                                    <div className="rounded-3 bg-success-subtle text-success p-3 fw-bold">
                                         ✓
                                     </div>
-
                                 </div>
-
                             </div>
-
                         </div>
-
                     </div>
 
-
-                    {/* DRAFT */}
-
                     <div className="col-12 col-sm-6 col-xl-3">
-
                         <div className="card border-0 shadow-sm rounded-4 h-100">
-
                             <div className="card-body p-4">
-
                                 <div className="d-flex justify-content-between align-items-start">
-
                                     <div>
-
-                                        <div className="text-secondary small mb-2">
-                                            Draft Products
+                                        <div className="small text-muted mb-2">
+                                            Out of Stock
                                         </div>
-
-                                        <div className="fs-2 fw-bold text-warning">
-                                            {draftProducts}
+                                        <div className="fs-3 fw-bold text-danger">
+                                            {outOfStockCount}
                                         </div>
-
                                     </div>
-
-
-                                    <div className="bg-warning bg-opacity-10 text-warning rounded-3 p-3">
-                                        D
-                                    </div>
-
-                                </div>
-
-                            </div>
-
-                        </div>
-
-                    </div>
-
-
-                    {/* LOW STOCK */}
-
-                    <div className="col-12 col-sm-6 col-xl-3">
-
-                        <div className="card border-0 shadow-sm rounded-4 h-100">
-
-                            <div className="card-body p-4">
-
-                                <div className="d-flex justify-content-between align-items-start">
-
-                                    <div>
-
-                                        <div className="text-secondary small mb-2">
-                                            Low Stock
-                                        </div>
-
-                                        <div className="fs-2 fw-bold text-danger">
-                                            {lowStockProducts}
-                                        </div>
-
-                                    </div>
-
-
-                                    <div className="bg-danger bg-opacity-10 text-danger rounded-3 p-3">
+                                    <div className="rounded-3 bg-danger-subtle text-danger p-3 fw-bold">
                                         !
                                     </div>
-
                                 </div>
-
                             </div>
-
                         </div>
-
                     </div>
 
+                    <div className="col-12 col-sm-6 col-xl-3">
+                        <div className="card border-0 shadow-sm rounded-4 h-100">
+                            <div className="card-body p-4">
+                                <div className="d-flex justify-content-between align-items-start">
+                                    <div>
+                                        <div className="small text-muted mb-2">
+                                            Featured
+                                        </div>
+                                        <div className="fs-3 fw-bold text-warning-emphasis">
+                                            {featuredProductCount}
+                                        </div>
+                                    </div>
+                                    <div className="rounded-3 bg-warning-subtle text-warning-emphasis p-3 fw-bold">
+                                        ★
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
-
-                {/* =================================================
-                   PRODUCTS CARD
-                   ================================================= */}
-
-                <div className="card border-0 shadow-sm rounded-4 overflow-hidden">
-
-
-                    {/* =================================================
-                       FILTER AREA
-                       ================================================= */}
-
-                    <div className="card-header bg-white border-0 p-4">
-
-                        <div className="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-3 mb-3">
-
-                            <div>
-
-                                <h5 className="fw-bold mb-1">
-                                    All Products
-                                </h5>
-
-                                <p className="text-secondary small mb-0">
-                                    Your complete Aurora product catalog.
-                                </p>
-
-                            </div>
-
-
-                            {/* RESULT SUMMARY */}
-
-                            <div className="small text-secondary">
-
-                                {totalProducts > 0 ? (
-
-                                    <>
-                                        Showing{" "}
-                                        <strong>
-                                            {startItem}
-                                        </strong>
-                                        {" "}–{" "}
-                                        <strong>
-                                            {endItem}
-                                        </strong>
-                                        {" "}of{" "}
-                                        <strong>
-                                            {totalProducts}
-                                        </strong>
-                                    </>
-
-                                ) : (
-
-                                    "No products found"
-
-                                )}
-
-                            </div>
-
-                        </div>
-
-
-                        {/* =================================================
-                           FILTER FORM
-                           ================================================= */}
-
+                <div className="card border-0 shadow-sm rounded-4 mb-4">
+                    <div className="card-body p-3">
                         <form
                             method="GET"
-                            action="/admin/products"
-                            className="row g-2"
+                            className="row g-2 align-items-center"
                         >
-
-                            {/* RESET PAGE WHEN FILTERING */}
-
-                            <input
-                                type="hidden"
-                                name="page"
-                                value="1"
-                            />
-
-
-                            {/* SEARCH */}
-
-                            <div className="col-12 col-lg">
-
-                                <div className="input-group">
-
-                                    <span className="input-group-text bg-light border-end-0">
-                                        🔍
-                                    </span>
-
-
-                                    <input
-                                        type="search"
-                                        name="search"
-                                        defaultValue={search}
-                                        className="form-control bg-light border-start-0"
-                                        placeholder="Search products, SKU or brand..."
-                                    />
-
-                                </div>
-
+                            <div className="col-12 col-xl-4">
+                                <input
+                                    type="search"
+                                    name="q"
+                                    defaultValue={search}
+                                    className="form-control"
+                                    placeholder="Search products, SKU or brand..."
+                                />
                             </div>
 
-
-                            {/* CATEGORY */}
-
-                            <div className="col-12 col-sm-6 col-lg-2">
-
+                            <div className="col-12 col-md-6 col-xl-2">
                                 <select
                                     name="category"
                                     defaultValue={category}
-                                    className="form-select bg-light"
+                                    className="form-select"
                                 >
-
                                     <option value="">
-                                        All categories
+                                        All Categories
                                     </option>
 
-
                                     {categories.map(
-                                        item => (
-
+                                        (item) => (
                                             <option
                                                 key={item.id}
                                                 value={item.id}
                                             >
                                                 {item.name}
                                             </option>
-
                                         )
                                     )}
-
                                 </select>
-
                             </div>
 
-
-                            {/* BRAND */}
-
-                            <div className="col-12 col-sm-6 col-lg-2">
-
+                            <div className="col-12 col-md-6 col-xl-2">
                                 <select
                                     name="brand"
                                     defaultValue={brand}
-                                    className="form-select bg-light"
+                                    className="form-select"
                                 >
-
                                     <option value="">
-                                        All brands
+                                        All Brands
                                     </option>
-
 
                                     {brands.map(
-                                        item => (
-
+                                        (item) => (
                                             <option
-                                                key={item}
-                                                value={item}
+                                                key={item.brand}
+                                                value={item.brand}
                                             >
-                                                {item}
+                                                {item.brand}
                                             </option>
-
                                         )
                                     )}
-
                                 </select>
-
                             </div>
 
-
-                            {/* PAGE SIZE */}
-
-                            <div className="col-12 col-sm-6 col-lg-2">
-
+                            <div className="col-12 col-md-6 col-xl-1">
                                 <select
-                                    name="limit"
-                                    defaultValue={String(limit)}
-                                    className="form-select bg-light"
+                                    name="status"
+                                    defaultValue={status}
+                                    className="form-select"
+                                >
+                                    <option value="">
+                                        Status
+                                    </option>
+                                    <option value="active">
+                                        Active
+                                    </option>
+                                    <option value="draft">
+                                        Draft
+                                    </option>
+                                    <option value="inactive">
+                                        Inactive
+                                    </option>
+                                    <option value="out_of_stock">
+                                        Out of Stock
+                                    </option>
+                                </select>
+                            </div>
+
+                            <div className="col-12 col-md-6 col-xl-1">
+                                <select
+                                    name="perPage"
+                                    defaultValue={pageSize}
+                                    className="form-select"
                                     aria-label="Products per page"
                                 >
-
-                                    <option value="10">
-                                        10 per page
-                                    </option>
-
-                                    <option value="20">
-                                        20 per page
-                                    </option>
-
-                                    <option value="50">
-                                        50 per page
-                                    </option>
-
+                                    {PAGE_SIZE_OPTIONS.map(
+                                        (size) => (
+                                            <option
+                                                key={size}
+                                                value={size}
+                                            >
+                                                {size} per page
+                                            </option>
+                                        )
+                                    )}
                                 </select>
-
                             </div>
 
-
-                            {/* SEARCH BUTTON */}
-
-                            <div className="col-12 col-sm-auto">
-
+                            <div className="col-12 col-md-6 col-xl-1">
                                 <button
                                     type="submit"
-                                    className="btn btn-dark px-4 w-100"
+                                    className="btn btn-dark w-100"
                                 >
                                     Search
                                 </button>
-
                             </div>
 
-
-                            {/* CLEAR */}
-
-                            {hasFilters && (
-
-                                <div className="col-12 col-sm-auto">
-
+                            {hasActiveFilters && (
+                                <div className="col-12 col-md-6 col-xl-1">
                                     <Link
                                         href="/admin/products"
-                                        className="btn btn-light border px-4 w-100"
+                                        className="btn btn-light border w-100"
                                     >
                                         Clear
                                     </Link>
-
                                 </div>
-
                             )}
-
                         </form>
-
                     </div>
-
-
-                    {/* =================================================
-                       TABLE
-                       ================================================= */}
-
-                    <div className="table-responsive">
-
-                        <table className="table table-hover align-middle mb-0">
-
-
-                            <thead className="table-light">
-
-                                <tr>
-
-                                    <th className="px-4 py-3">
-                                        Product
-                                    </th>
-
-                                    <th>
-                                        Category
-                                    </th>
-
-                                    <th>
-                                        Price
-                                    </th>
-
-                                    <th>
-                                        Stock
-                                    </th>
-
-                                    <th>
-                                        Status
-                                    </th>
-
-                                    <th className="text-end px-4">
-                                        Actions
-                                    </th>
-
-                                </tr>
-
-                            </thead>
-
-
-                            <tbody>
-
-
-                                {/* =================================================
-                                   EMPTY / NO RESULTS
-                                   ================================================= */}
-
-                                {products.length === 0 && (
-
-                                    <tr>
-
-                                        <td
-                                            colSpan={6}
-                                            className="text-center py-5"
-                                        >
-
-                                            <div className="py-5">
-
-                                                <div
-                                                    className="
-                                                        mx-auto
-                                                        mb-3
-                                                        rounded-circle
-                                                        bg-primary
-                                                        bg-opacity-10
-                                                        text-primary
-                                                        d-flex
-                                                        align-items-center
-                                                        justify-content-center
-                                                    "
-                                                    style={{
-                                                        width: "70px",
-                                                        height: "70px"
-                                                    }}
-                                                >
-                                                    P
-                                                </div>
-
-
-                                                <h5 className="fw-bold">
-
-                                                    {hasFilters
-                                                        ? "No matching products"
-                                                        : "No products yet"
-                                                    }
-
-                                                </h5>
-
-
-                                                <p className="text-secondary">
-
-                                                    {hasFilters
-                                                        ? "Try changing your search or filters."
-                                                        : "Create your first Aurora product."
-                                                    }
-
-                                                </p>
-
-
-                                                {hasFilters ? (
-
-                                                    <Link
-                                                        href="/admin/products"
-                                                        className="btn btn-light border rounded-3 px-4"
-                                                    >
-                                                        Clear Filters
-                                                    </Link>
-
-                                                ) : (
-
-                                                    <Link
-                                                        href="/admin/products/new"
-                                                        className="btn btn-primary rounded-3 px-4"
-                                                    >
-                                                        Create Product
-                                                    </Link>
-
-                                                )}
-
-                                            </div>
-
-                                        </td>
-
-                                    </tr>
-
-                                )}
-
-
-                                {/* =================================================
-                                   PRODUCTS
-                                   ================================================= */}
-
-                                {products.map(product => (
-
-                                    <tr key={product.id}>
-
-
-                                        {/* PRODUCT */}
-
-                                        <td className="px-4">
-
-                                            <div className="d-flex align-items-center gap-3">
-
-
-                                                <div
-                                                    className="
-                                                        rounded-3
-                                                        overflow-hidden
-                                                        bg-light
-                                                        d-flex
-                                                        align-items-center
-                                                        justify-content-center
-                                                        flex-shrink-0
-                                                    "
-                                                    style={{
-                                                        width: "60px",
-                                                        height: "60px"
-                                                    }}
-                                                >
-
-                                                    {product.image_url ? (
-
-                                                        <img
-                                                            src={product.image_url}
-                                                            alt={product.name}
-                                                            className="w-100 h-100 object-fit-cover"
-                                                        />
-
-                                                    ) : (
-
-                                                        <span className="fw-bold text-primary fs-5">
-                                                            A
-                                                        </span>
-
-                                                    )}
-
-                                                </div>
-
-
-                                                <div>
-
-                                                    <div className="fw-semibold">
-                                                        {product.name}
-                                                    </div>
-
-
-                                                    <div className="small text-secondary">
-                                                        {product.brand || "Aurora"}
-                                                    </div>
-
-
-                                                    {product.sku && (
-
-                                                        <div className="small text-muted">
-                                                            SKU: {product.sku}
-                                                        </div>
-
-                                                    )}
-
-                                                </div>
-
-                                            </div>
-
-                                        </td>
-
-
-                                        {/* CATEGORY */}
-
-                                        <td>
-
-                                            <span className="badge bg-primary bg-opacity-10 text-primary rounded-pill">
-
-                                                {product.category_name ||
-                                                    "Uncategorized"}
-
-                                            </span>
-
-                                        </td>
-
-
-                                        {/* PRICE */}
-
-                                        <td>
-
-                                            <div className="fw-bold">
-                                                {money(Number(product.price))}
-                                            </div>
-
-                                            <del className="small text-secondary">
-                                                {money(Number(product.mrp))}
-                                            </del>
-
-                                        </td>
-
-
-                                        {/* STOCK */}
-
-                                        <td>
-
-                                            {Number(product.stock) < 10 ? (
-
-                                                <span className="badge text-bg-danger rounded-pill">
-                                                    {product.stock}
-                                                </span>
-
-                                            ) : (
-
-                                                <span className="badge text-bg-success rounded-pill">
-                                                    {product.stock}
-                                                </span>
-
-                                            )}
-
-                                        </td>
-
-
-                                        {/* STATUS */}
-
-                                        <td>
-
-                                            <StatusBadge
-                                                status={product.status}
-                                            />
-
-                                        </td>
-
-
-                                        {/* ACTIONS */}
-
-                                        <td className="text-end px-4">
-
-                                            <div className="d-inline-flex gap-2">
-
-
-                                                <Link
-                                                    href={`/products/${product.slug}`}
-                                                    className="btn btn-sm btn-light border rounded-3"
-                                                >
-                                                    View
-                                                </Link>
-
-
-                                                <Link
-                                                    href={`/admin/products/${product.id}/edit`}
-                                                    className="btn btn-sm btn-outline-primary rounded-3"
-                                                >
-                                                    Edit
-                                                </Link>
-
-
-                                                <DeleteProductButton
-                                                    productId={product.id}
-                                                    productName={product.name}
-                                                />
-
-                                            </div>
-
-                                        </td>
-
-                                    </tr>
-
-                                ))}
-
-                            </tbody>
-
-                        </table>
-
-                    </div>
-
-
-                    {/* =================================================
-                       PAGINATION FOOTER
-                       ================================================= */}
-
-                    <div className="border-top bg-light px-4 py-3">
-
-                        <div className="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-3">
-
-
-                            {/* =================================================
-                               RESULT INFORMATION
-                               ================================================= */}
-
-                            <div>
-
-                                <small className="text-secondary">
-
-                                    Showing{" "}
-
-                                    <strong>
-                                        {startItem}
-                                    </strong>
-
-                                    {" "}–{" "}
-
-                                    <strong>
-                                        {endItem}
-                                    </strong>
-
-                                    {" "}of{" "}
-
-                                    <strong>
-                                        {totalProducts}
-                                    </strong>
-
-                                    {" "}product
-                                    {totalProducts !== 1 ? "s" : ""}
-
-                                </small>
-
-
-                                {hasFilters && (
-
-                                    <div className="small text-primary mt-1">
-                                        Filters are active
-                                    </div>
-
-                                )}
-
-                            </div>
-
-
-                            {/* =================================================
-                               PAGINATION
-                               ================================================= */}
-
-                            {totalProducts > 0 && totalPages > 1 && (
-
-                                <nav
-                                    aria-label="Product pagination"
-                                >
-
-                                    <ul className="pagination pagination-sm mb-0">
-
-
-                                        {/* PREVIOUS */}
-
-                                        <li
-                                            className={`page-item ${
-                                                currentPage <= 1
-                                                    ? "disabled"
-                                                    : ""
-                                            }`}
-                                        >
-
-                                            {currentPage <= 1 ? (
-
-                                                <span className="page-link">
-                                                    ←
-                                                </span>
-
-                                            ) : (
-
-                                                <Link
-                                                    className="page-link"
-                                                    href={buildPageUrl({
-                                                        search,
-                                                        category,
-                                                        brand,
-                                                        page: currentPage - 1,
-                                                        limit
-                                                    })}
-                                                    aria-label="Previous page"
-                                                >
-                                                    ←
-                                                </Link>
-
-                                            )}
-
-                                        </li>
-
-
-                                        {/* PAGE NUMBERS */}
-
-                                        {paginationPages.map(
-                                            (pageNumber, index) => {
-
-                                                if (
-                                                    pageNumber ===
-                                                    "ellipsis"
-                                                ) {
-
-                                                    return (
-                                                        <li
-                                                            key={`ellipsis-${index}`}
-                                                            className="page-item disabled"
-                                                        >
-                                                            <span className="page-link">
-                                                                …
-                                                            </span>
-                                                        </li>
-                                                    );
-                                                }
-
-
-                                                return (
-                                                    <li
-                                                        key={pageNumber}
-                                                        className={`page-item ${
-                                                            pageNumber === currentPage
-                                                                ? "active"
-                                                                : ""
-                                                        }`}
-                                                    >
-
-                                                        <Link
-                                                            className="page-link"
-                                                            href={buildPageUrl({
-                                                                search,
-                                                                category,
-                                                                brand,
-                                                                page: pageNumber,
-                                                                limit
-                                                            })}
-                                                        >
-                                                            {pageNumber}
-                                                        </Link>
-
-                                                    </li>
-                                                );
-                                            }
-                                        )}
-
-
-                                        {/* NEXT */}
-
-                                        <li
-                                            className={`page-item ${
-                                                currentPage >= totalPages
-                                                    ? "disabled"
-                                                    : ""
-                                            }`}
-                                        >
-
-                                            {currentPage >= totalPages ? (
-
-                                                <span className="page-link">
-                                                    →
-                                                </span>
-
-                                            ) : (
-
-                                                <Link
-                                                    className="page-link"
-                                                    href={buildPageUrl({
-                                                        search,
-                                                        category,
-                                                        brand,
-                                                        page: currentPage + 1,
-                                                        limit
-                                                    })}
-                                                    aria-label="Next page"
-                                                >
-                                                    →
-                                                </Link>
-
-                                            )}
-
-                                        </li>
-
-                                    </ul>
-
-                                </nav>
-
-                            )}
-
-                        </div>
-
-                    </div>
-
                 </div>
 
-            </div>
+                <div className="card border-0 shadow-sm rounded-4 overflow-hidden">
+                    <div className="card-body p-0">
+                        <div className="p-4 border-bottom">
+                            <div className="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-2">
+                                <div>
+                                    <h5 className="fw-bold mb-1">
+                                        Product Catalogue
+                                    </h5>
+                                    <div className="small text-muted">
+                                        Showing {products.length} of{" "}
+                                        {totalProducts} products
+                                    </div>
+                                </div>
 
-        </main>
-    );
+                                <div className="small text-muted">
+                                    Page {safePage} of {totalPages}
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="table-responsive">
+                            <table className="table table-hover align-middle mb-0">
+                                <thead className="table-light">
+                                    <tr>
+                                        <th className="px-4 py-3">
+                                            Product
+                                        </th>
+                                        <th className="py-3">
+                                            Category
+                                        </th>
+                                        <th className="py-3">
+                                            Price
+                                        </th>
+                                        <th className="py-3">
+                                            Stock
+                                        </th>
+                                        <th className="py-3">
+                                            Rating
+                                        </th>
+                                        <th className="py-3">
+                                            Status
+                                        </th>
+                                        <th className="text-end px-4 py-3">
+                                            Actions
+                                        </th>
+                                    </tr>
+                                </thead>
+
+                                <tbody>
+                                    {products.length === 0 ? (
+                                        <tr>
+                                            <td
+                                                colSpan={7}
+                                                className="text-center py-5"
+                                            >
+                                                <div className="fw-bold fs-5 mb-1">
+                                                    No products found
+                                                </div>
+
+                                                <div className="text-muted mb-3">
+                                                    Try changing your filters
+                                                    or create a new product.
+                                                </div>
+
+                                                <Link
+                                                    href="/admin/products/new"
+                                                    className="btn btn-dark rounded-3"
+                                                >
+                                                    Create Product
+                                                </Link>
+                                            </td>
+                                        </tr>
+                                    ) : (
+                                        products.map(
+                                            (product) => {
+                                                const imageUrl =
+                                                    typeof product.image_url ===
+                                                    "string"
+                                                        ? product.image_url.trim()
+                                                        : "";
+
+                                                const price =
+                                                    getNumber(
+                                                        product.price
+                                                    );
+
+                                                const mrp =
+                                                    getNumber(
+                                                        product.mrp
+                                                    );
+
+                                                const rating =
+                                                    getNumber(
+                                                        product.rating
+                                                    );
+
+                                                const categoryClass =
+                                                    getCategoryBadgeClass(
+                                                        product.category_name
+                                                    );
+
+                                                const stockClass =
+                                                    getStockBadgeClass(
+                                                        product.stock
+                                                    );
+
+                                                return (
+                                                    <tr
+                                                        key={
+                                                            product.id
+                                                        }
+                                                    >
+                                                        <td className="px-4">
+                                                            <div className="d-flex align-items-center gap-3">
+                                                                <div
+                                                                    className="rounded-3 border bg-light d-flex align-items-center justify-content-center overflow-hidden flex-shrink-0"
+                                                                    style={{
+                                                                        width: "56px",
+                                                                        height: "56px"
+                                                                    }}
+                                                                >
+                                                                    {imageUrl ? (
+                                                                        <img
+                                                                            src={
+                                                                                imageUrl
+                                                                            }
+                                                                            alt={
+                                                                                product.name
+                                                                            }
+                                                                            className="w-100 h-100 object-fit-cover"
+                                                                        />
+                                                                    ) : (
+                                                                        <span className="fw-bold text-primary fs-5">
+                                                                            A
+                                                                        </span>
+                                                                    )}
+                                                                </div>
+
+                                                                <div className="min-w-0">
+                                                                    <div
+                                                                        className="fw-semibold text-truncate"
+                                                                        style={{
+                                                                            maxWidth:
+                                                                                "280px"
+                                                                        }}
+                                                                    >
+                                                                        {
+                                                                            product.name
+                                                                        }
+                                                                    </div>
+
+                                                                    {product.brand && (
+                                                                        <div className="small text-muted">
+                                                                            {
+                                                                                product.brand
+                                                                            }
+                                                                        </div>
+                                                                    )}
+
+                                                                    <div className="small text-muted">
+                                                                        SKU:{" "}
+                                                                        {
+                                                                            product.sku ||
+                                                                            "—"
+                                                                        }
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        </td>
+
+                                                        <td>
+                                                            <span
+                                                                className={`badge rounded-pill px-3 py-2 fw-semibold ${categoryClass}`}
+                                                            >
+                                                                {
+                                                                    product.category_name ||
+                                                                    "Uncategorized"
+                                                                }
+                                                            </span>
+                                                        </td>
+
+                                                        <td>
+                                                            <div className="fw-bold">
+                                                                {money(
+                                                                    price
+                                                                )}
+                                                            </div>
+
+                                                            {mrp > price && (
+                                                                <div className="small text-muted text-decoration-line-through">
+                                                                    {money(
+                                                                        mrp
+                                                                    )}
+                                                                </div>
+                                                            )}
+                                                        </td>
+
+                                                        <td>
+                                                            <span
+                                                                className={`rounded-circle d-inline-flex align-items-center justify-content-center fw-bold ${stockClass}`}
+                                                                style={{
+                                                                    width: "38px",
+                                                                    height: "38px"
+                                                                }}
+                                                                title={
+                                                                    product.stock <=
+                                                                    0
+                                                                        ? "Out of Stock"
+                                                                        : product.stock <=
+                                                                            10
+                                                                          ? "Low Stock"
+                                                                          : "In Stock"
+                                                                }
+                                                            >
+                                                                {
+                                                                    product.stock
+                                                                }
+                                                            </span>
+                                                        </td>
+
+                                                        <td>
+                                                            <div className="d-flex align-items-center gap-1">
+                                                                <span className="text-warning">
+                                                                    ★
+                                                                </span>
+
+                                                                <span className="fw-semibold">
+                                                                    {rating.toFixed(
+                                                                        1
+                                                                    )}
+                                                                </span>
+                                                            </div>
+
+                                                            <div className="small text-muted">
+                                                                {
+                                                                    product.review_count
+                                                                }{" "}
+                                                                reviews
+                                                            </div>
+                                                        </td>
+
+                                                        <td>
+                                                            <span
+                                                                className={`badge rounded-pill px-3 py-2 text-uppercase ${getStatusBadgeClass(
+                                                                    product.status
+                                                                )}`}
+                                                            >
+                                                                {
+                                                                    product.status
+                                                                }
+                                                            </span>
+                                                        </td>
+
+                                                        <td className="text-end px-4">
+                                                            <div className="d-flex justify-content-end gap-2">
+                                                                <Link
+                                                                    href={`/admin/products/${product.id}`}
+                                                                    className="btn btn-sm btn-light border"
+                                                                    title="View product"
+                                                                >
+                                                                    View
+                                                                </Link>
+
+                                                                <Link
+                                                                    href={`/admin/products/${product.id}/edit`}
+                                                                    className="btn btn-sm btn-outline-primary"
+                                                                    title="Edit product"
+                                                                >
+                                                                    Edit
+                                                                </Link>
+
+                                                                <DeleteProductButton
+                                                                    productId={
+                                                                        product.id
+                                                                    }
+                                                                />
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            }
+                                        )
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+
+                        {totalPages > 1 && (
+                            <div className="border-top p-3">
+                                <div className="d-flex flex-column flex-md-row justify-content-between align-items-center gap-3">
+                                    <div className="small text-muted">
+                                        Showing {products.length} of{" "}
+                                        {totalProducts} products
+                                    </div>
+
+                                    <nav>
+                                        <ul className="pagination mb-0 align-items-center">
+                                            <li
+                                                className={
+                                                    safePage <= 1
+                                                        ? "disabled"
+                                                        : ""
+                                                }
+                                            >
+                                                <Link
+                                                    className="page-link"
+                                                    href={
+                                                        safePage > 1
+                                                            ? `?${createQueryString(
+                                                                  {
+                                                                      page:
+                                                                          safePage -
+                                                                          1
+                                                                  }
+                                                              )}`
+                                                            : "#"
+                                                    }
+                                                >
+                                                    Previous
+                                                </Link>
+                                            </li>
+
+                                            {Array.from(
+                                                {
+                                                    length:
+                                                        totalPages
+                                                },
+                                                (_, index) =>
+                                                    index + 1
+                                            )
+                                                .filter(
+                                                    (page) =>
+                                                        page ===
+                                                            1 ||
+                                                        page ===
+                                                            totalPages ||
+                                                        Math.abs(
+                                                            page -
+                                                                safePage
+                                                        ) <= 2
+                                                )
+                                                .map(
+                                                    (
+                                                        page,
+                                                        index,
+                                                        pages
+                                                    ) => {
+                                                        const previous =
+                                                            pages[
+                                                                index -
+                                                                    1
+                                                            ];
+
+                                                        const showEllipsis =
+                                                            previous &&
+                                                            page -
+                                                                previous >
+                                                                1;
+
+                                                        return (
+                                                            <span
+                                                                key={
+                                                                    page
+                                                                }
+                                                                className="d-flex align-items-center"
+                                                            >
+                                                                {showEllipsis && (
+                                                                    <span className="px-1 text-muted">
+                                                                        ...
+                                                                    </span>
+                                                                )}
+
+                                                                <li
+                                                                    className={
+                                                                        page ===
+                                                                        safePage
+                                                                            ? "active"
+                                                                            : ""
+                                                                    }
+                                                                >
+                                                                    <Link
+                                                                        className="page-link"
+                                                                        href={`?${createQueryString(
+                                                                            {
+                                                                                page
+                                                                            }
+                                                                        )}`}
+                                                                    >
+                                                                        {
+                                                                            page
+                                                                        }
+                                                                    </Link>
+                                                                </li>
+                                                            </span>
+                                                        );
+                                                    }
+                                                )}
+
+                                            <li
+                                                className={
+                                                    safePage >=
+                                                    totalPages
+                                                        ? "disabled"
+                                                        : ""
+                                                }
+                                            >
+                                                <Link
+                                                    className="page-link"
+                                                    href={
+                                                        safePage <
+                                                        totalPages
+                                                            ? `?${createQueryString(
+                                                                  {
+                                                                      page:
+                                                                          safePage +
+                                                                          1
+                                                                  }
+                                                              )}`
+                                                            : "#"
+                                                    }
+                                                >
+                                                    Next
+                                                </Link>
+                                            </li>
+                                        </ul>
+                                    </nav>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            </div>
+        );
+    } catch (error) {
+        if (connection) {
+            connection.release();
+        }
+
+        console.error(
+            "ADMIN PRODUCTS PAGE ERROR:",
+            error
+        );
+
+        return (
+            <div className="container-fluid py-5">
+                <div className="alert alert-danger rounded-4 shadow-sm">
+                    <h5 className="fw-bold">
+                        Unable to load products
+                    </h5>
+
+                    <p className="mb-3">
+                        Something went wrong while loading
+                        the product catalogue.
+                    </p>
+
+                    <Link
+                        href="/admin/products"
+                        className="btn btn-danger rounded-3"
+                    >
+                        Try Again
+                    </Link>
+                </div>
+            </div>
+        );
+    }
 }

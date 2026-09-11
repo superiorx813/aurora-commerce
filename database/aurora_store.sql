@@ -302,3 +302,17 @@ CREATE TABLE IF NOT EXISTS product_seo (
         ON UPDATE CASCADE
 );
 SHOW TABLES;
+
+-- 9/9/2026
+USE aurora_store;
+
+ALTER TABLE products
+MODIFY COLUMN image_url TEXT NULL,
+MODIFY COLUMN gallery_json LONGTEXT NULL;
+DESCRIBE products;
+
+ALTER TABLE product_images
+MODIFY COLUMN image_url LONGTEXT NOT NULL;
+
+ALTER TABLE products
+MODIFY COLUMN image_url LONGTEXT NULL;

@@ -541,98 +541,105 @@ export default function ProductForm({
         useState("");
 
 
+    // =====================================================
+    // IMPORTANT IMAGE STATE
+    //
+    // Primary image and gallery input are intentionally
+    // kept separate.
+    // =====================================================
+
     const [imageUrl, setImageUrl] =
         useState(
             toStringValue(
                 product?.image_url
-            )
+            ).trim()
         );
+
+
+    const [galleryInputUrl, setGalleryInputUrl] =
+        useState("");
 
 
     const [galleryUrls, setGalleryUrls] =
-        useState<string[]>(
-            () => {
+        useState<string[]>(() => {
 
-                if (
-                    Array.isArray(
-                        product?.gallery_json
+            if (
+                Array.isArray(
+                    product?.gallery_json
+                )
+            ) {
+
+                return product.gallery_json
+                    .map(
+                        (item: any) =>
+                            toStringValue(item).trim()
                     )
-                ) {
+                    .filter(
+                        (item: string) =>
+                            item.length > 0
+                    );
 
-                    return product.gallery_json
-                        .map(
-                            (item: any) =>
-                                toStringValue(item)
-                        )
-                        .filter(
-                            (item: string) =>
-                                item.length > 0
+            }
+
+
+            if (
+                typeof product?.gallery_json ===
+                "string"
+            ) {
+
+                try {
+
+                    const parsed =
+                        JSON.parse(
+                            product.gallery_json
                         );
 
-                }
+                    if (
+                        Array.isArray(parsed)
+                    ) {
 
-
-                if (
-                    typeof product?.gallery_json ===
-                    "string"
-                ) {
-
-                    try {
-
-                        const parsed =
-                            JSON.parse(
-                                product.gallery_json
+                        return parsed
+                            .map(
+                                (item: any) =>
+                                    toStringValue(item).trim()
+                            )
+                            .filter(
+                                (item: string) =>
+                                    item.length > 0
                             );
-
-                        if (
-                            Array.isArray(parsed)
-                        ) {
-
-                            return parsed
-                                .map(
-                                    (item: any) =>
-                                        toStringValue(item)
-                                )
-                                .filter(
-                                    (item: string) =>
-                                        item.length > 0
-                                );
-
-                        }
-
-                    } catch {
-
-                        return [];
 
                     }
 
+                } catch {
+
+                    return [];
+
                 }
 
-
-                return [];
-
             }
-        );
+
+
+            return [];
+
+        });
 
 
     const [specifications, setSpecifications] =
-        useState<Specification[]>(
-            () => {
+        useState<Specification[]>(() => {
 
-                if (
-                    Array.isArray(
-                        product?.specifications
-                    )
-                ) {
+            if (
+                Array.isArray(
+                    product?.specifications
+                )
+            ) {
 
-                    return product.specifications;
-
-                }
-
-                return [];
+                return product.specifications;
 
             }
-        );
+
+            return [];
+
+        });
 
 
     // =====================================================
@@ -769,7 +776,7 @@ export default function ProductForm({
     function addGalleryImage() {
 
         const value =
-            imageUrl.trim();
+            galleryInputUrl.trim();
 
 
         if (!value) {
@@ -795,7 +802,10 @@ export default function ProductForm({
         );
 
 
-        setImageUrl("");
+        // IMPORTANT:
+        // Clear only the gallery input.
+        // Never clear the primary image.
+        setGalleryInputUrl("");
 
     }
 
@@ -859,9 +869,11 @@ export default function ProductForm({
             }
 
 
-            if (!/^\d+$/.test(
-                form.category_id.trim()
-            )) {
+            if (
+                !/^\d+$/.test(
+                    form.category_id.trim()
+                )
+            ) {
 
                 setError(
                     "Category ID must be a valid number."
@@ -1022,13 +1034,13 @@ export default function ProductForm({
         setSuccess("");
 
 
-        // -------------------------------------------------
-        // Always validate the first two important steps
-        // -------------------------------------------------
-
         const originalStep =
             step;
 
+
+        // -------------------------------------------------
+        // Validate Basic + Pricing before publishing
+        // -------------------------------------------------
 
         if (step === 7) {
 
@@ -1039,8 +1051,11 @@ export default function ProductForm({
 
 
             if (!basicValid) {
+
                 setStep(1);
+
                 return;
+
             }
 
 
@@ -1051,8 +1066,11 @@ export default function ProductForm({
 
 
             if (!pricingValid) {
+
                 setStep(2);
+
                 return;
+
             }
 
 
@@ -1096,6 +1114,14 @@ export default function ProductForm({
 
 
             // =================================================
+            // CLEAN PRIMARY IMAGE
+            // =================================================
+
+            const cleanImageUrl =
+                imageUrl.trim();
+
+
+            // =================================================
             // CLEAN GALLERY
             // =================================================
 
@@ -1125,6 +1151,7 @@ export default function ProductForm({
                     )
                     .map(
                         item => ({
+
                             specification_group:
                                 item.specification_group ||
                                 "General",
@@ -1136,6 +1163,7 @@ export default function ProductForm({
                             specification_value:
                                 item.specification_value
                                     .trim()
+
                         })
                     );
 
@@ -1197,8 +1225,13 @@ export default function ProductForm({
                 status:
                     form.status,
 
+                // =================================================
+                // IMPORTANT:
+                // Primary image is saved separately.
+                // =================================================
+
                 image_url:
-                    imageUrl.trim() ||
+                    cleanImageUrl ||
                     null,
 
                 gallery_json:
@@ -1288,6 +1321,21 @@ export default function ProductForm({
 
 
             // =================================================
+            // DEBUG
+            // =================================================
+
+            console.log(
+                "[PRODUCT FORM] PRIMARY IMAGE:",
+                cleanImageUrl
+            );
+
+            console.log(
+                "[PRODUCT FORM] GALLERY:",
+                cleanGalleryUrls
+            );
+
+
+            // =================================================
             // API URL
             // =================================================
 
@@ -1323,27 +1371,26 @@ export default function ProductForm({
                         method,
 
                         headers: {
+
                             "Content-Type":
                                 "application/json",
 
                             "Accept":
                                 "application/json"
+
                         },
 
                         body:
                             JSON.stringify(
                                 payload
                             )
+
                     }
                 );
 
 
             // =================================================
-            // IMPORTANT:
-            // READ TEXT FIRST
-            //
-            // This prevents:
-            // Unexpected end of JSON input
+            // READ RESPONSE TEXT FIRST
             // =================================================
 
             const responseText =
@@ -1424,8 +1471,6 @@ export default function ProductForm({
 
             // =================================================
             // REDIRECT
-            //
-            // Both CREATE and EDIT go back to products.
             // =================================================
 
             setTimeout(
@@ -2150,7 +2195,7 @@ export default function ProductForm({
 
 
                 {/* =================================================
-                    STEP 3
+                    STEP 3 - MEDIA
                 ================================================= */}
 
                 {step === 3 && (
@@ -2178,6 +2223,10 @@ export default function ProductForm({
                         </div>
 
 
+                        {/* =================================================
+                            PRIMARY IMAGE
+                        ================================================= */}
+
                         <div className="media-main-field">
 
                             <label>
@@ -2185,6 +2234,7 @@ export default function ProductForm({
                             </label>
 
                             <input
+                                type="text"
                                 value={imageUrl}
                                 onChange={event =>
                                     setImageUrl(
@@ -2195,25 +2245,42 @@ export default function ProductForm({
                             />
 
                             <small>
-                                For now we're using image URLs.
+                                This image will be used as the main product image.
                             </small>
 
                         </div>
 
 
-                        {imageUrl && (
+                        {/* =================================================
+                            PRIMARY IMAGE PREVIEW
+                        ================================================= */}
+
+                        {imageUrl.trim() && (
 
                             <div className="primary-image-preview">
 
                                 <img
-                                    src={imageUrl}
-                                    alt="Product preview"
+                                    src={imageUrl.trim()}
+                                    alt={
+                                        form.name ||
+                                        "Product preview"
+                                    }
+                                    style={{
+                                        width: "100%",
+                                        height: "100%",
+                                        objectFit: "cover",
+                                        display: "block"
+                                    }}
                                 />
 
                             </div>
 
                         )}
 
+
+                        {/* =================================================
+                            GALLERY
+                        ================================================= */}
 
                         <div className="gallery-field">
 
@@ -2224,9 +2291,10 @@ export default function ProductForm({
                             <div className="gallery-add-row">
 
                                 <input
-                                    value={imageUrl}
+                                    type="text"
+                                    value={galleryInputUrl}
                                     onChange={event =>
-                                        setImageUrl(
+                                        setGalleryInputUrl(
                                             event.target.value
                                         )
                                     }
@@ -2247,6 +2315,10 @@ export default function ProductForm({
                         </div>
 
 
+                        {/* =================================================
+                            GALLERY PREVIEW
+                        ================================================= */}
+
                         {galleryUrls.length > 0 && (
 
                             <div className="gallery-preview-grid">
@@ -2264,7 +2336,15 @@ export default function ProductForm({
 
                                             <img
                                                 src={url}
-                                                alt={`Gallery ${index + 1}`}
+                                                alt={
+                                                    `Gallery ${index + 1}`
+                                                }
+                                                style={{
+                                                    width: "100%",
+                                                    height: "100%",
+                                                    objectFit: "cover",
+                                                    display: "block"
+                                                }}
                                             />
 
                                             <button
@@ -2781,15 +2861,28 @@ export default function ProductForm({
                         </div>
 
 
+                        {/* =================================================
+                            REVIEW PRODUCT PREVIEW
+                        ================================================= */}
+
                         <div className="publish-preview">
 
                             <div className="publish-image">
 
-                                {imageUrl ? (
+                                {imageUrl.trim() ? (
 
                                     <img
-                                        src={imageUrl}
-                                        alt={form.name}
+                                        src={imageUrl.trim()}
+                                        alt={
+                                            form.name ||
+                                            "Product"
+                                        }
+                                        style={{
+                                            width: "100%",
+                                            height: "100%",
+                                            objectFit: "cover",
+                                            display: "block"
+                                        }}
                                     />
 
                                 ) : (
