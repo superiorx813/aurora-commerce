@@ -1,4 +1,3 @@
-
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
@@ -15,6 +14,10 @@ type StatRow = {
 
 type CustomerRow = {
     customers_count: number;
+};
+
+type ProductCountRow = {
+    products_count: number;
 };
 
 type ProductRow = {
@@ -34,8 +37,8 @@ type SalesRow = {
 type TopProductRow = {
     id: number;
     name: string;
+    image_url?: string | null;
     total_sold: number;
-    revenue: number;
 };
 
 type StatusRow = {
@@ -54,23 +57,15 @@ export default async function AdminPage() {
         redirect("/");
     }
 
-    /*
-     * ---------------------------------------------------------
-     * DASHBOARD DATA
-     * ---------------------------------------------------------
-     */
-
     const [
         [statsRows],
         [customerRows],
+        [productCountRows],
         [productRows],
         [salesRows],
         [topProductRows],
         [orderStatusRows],
     ] = await Promise.all([
-        /*
-         * Orders + Revenue
-         */
         db.query(`
             SELECT
                 COUNT(*) AS orders_count,
@@ -79,18 +74,17 @@ export default async function AdminPage() {
             WHERE status <> 'CANCELLED'
         `),
 
-        /*
-         * Customers
-         */
         db.query(`
             SELECT COUNT(*) AS customers_count
             FROM users
             WHERE role = 'CUSTOMER'
         `),
 
-        /*
-         * Products
-         */
+        db.query(`
+            SELECT COUNT(*) AS products_count
+            FROM products
+        `),
+
         db.query(`
             SELECT
                 id,
@@ -103,9 +97,6 @@ export default async function AdminPage() {
             LIMIT 6
         `),
 
-        /*
-         * Sales Overview - Last 30 Days
-         */
         db.query(`
             SELECT
                 DATE(created_at) AS sales_date,
@@ -119,43 +110,34 @@ export default async function AdminPage() {
             ORDER BY sales_date ASC
         `),
 
-        
-/*
- * Top Products
- *
- * Uses the quantity from order_items.
- * Cancelled orders are excluded.
- */
-db.query(`
-    SELECT
-        p.id,
-        p.name,
-        p.image_url,
-        COALESCE(SUM(
-            CASE
-                WHEN o.status <> 'CANCELLED'
-                THEN oi.quantity
-                ELSE 0
-            END
-        ), 0) AS sold
-    FROM products p
-    LEFT JOIN order_items oi
-        ON oi.product_id = p.id
-    LEFT JOIN orders o
-        ON o.id = oi.order_id
-    GROUP BY
-        p.id,
-        p.name,
-        p.image_url
-    ORDER BY sold DESC
-    LIMIT 5
-`),
+        db.query(`
+            SELECT
+                p.id,
+                p.name,
+                p.image_url,
+                COALESCE(
+                    SUM(
+                        CASE
+                            WHEN o.status <> 'CANCELLED'
+                            THEN oi.quantity
+                            ELSE 0
+                        END
+                    ),
+                    0
+                ) AS total_sold
+            FROM products p
+            LEFT JOIN order_items oi
+                ON oi.product_id = p.id
+            LEFT JOIN orders o
+                ON o.id = oi.order_id
+            GROUP BY
+                p.id,
+                p.name,
+                p.image_url
+            ORDER BY total_sold DESC
+            LIMIT 5
+        `),
 
-
-
-        /*
-         * Order Status
-         */
         db.query(`
             SELECT
                 status,
@@ -174,16 +156,14 @@ db.query(`
         customers_count: 0,
     };
 
+    const productCount = (productCountRows as ProductCountRow[])[0] ?? {
+        products_count: 0,
+    };
+
     const products = productRows as ProductRow[];
     const sales = salesRows as SalesRow[];
     const topProducts = topProductRows as TopProductRow[];
     const orderStatuses = orderStatusRows as StatusRow[];
-
-    /*
-     * ---------------------------------------------------------
-     * SALES CHART DATA
-     * ---------------------------------------------------------
-     */
 
     const salesMap = new Map(
         sales.map((item) => [
@@ -195,9 +175,14 @@ db.query(`
     const chartData = Array.from({ length: 30 }, (_, index) => {
         const date = new Date();
 
+        date.setHours(12, 0, 0, 0);
         date.setDate(date.getDate() - (29 - index));
 
-        const key = date.toISOString().slice(0, 10);
+        const key = [
+            date.getFullYear(),
+            String(date.getMonth() + 1).padStart(2, "0"),
+            String(date.getDate()).padStart(2, "0"),
+        ].join("-");
 
         return {
             date: key,
@@ -210,444 +195,622 @@ db.query(`
     });
 
     const maxRevenue = Math.max(
-        ...chartData.map((item) => item.revenue),
+        ...chartData.map((item) => Number(item.revenue)),
         1
     );
 
-    /*
-     * ---------------------------------------------------------
-     * ORDER STATUS HELPERS
-     * ---------------------------------------------------------
-     */
+    const total30DayRevenue = chartData.reduce(
+        (sum, item) => sum + Number(item.revenue),
+        0
+    );
 
-    const getStatusCount = (status: string) => {
-        return (
+    const getStatusCount = (status: string) =>
+        Number(
             orderStatuses.find(
                 (item) =>
-                    String(item.status).toUpperCase() === status
+                    String(item.status).trim().toUpperCase() ===
+                    status.toUpperCase()
             )?.count ?? 0
         );
-    };
 
     const pendingCount = getStatusCount("PENDING");
     const processingCount = getStatusCount("PROCESSING");
     const shippedCount = getStatusCount("SHIPPED");
     const deliveredCount = getStatusCount("DELIVERED");
 
-    /*
-     * ---------------------------------------------------------
-     * UI
-     * ---------------------------------------------------------
-     */
+    const statusTotal =
+        pendingCount +
+        processingCount +
+        shippedCount +
+        deliveredCount;
+
+    const getPercentage = (count: number) =>
+        statusTotal
+            ? Math.round((count / statusTotal) * 100)
+            : 0;
+
+    const highestSales = Math.max(
+        Number(topProducts[0]?.total_sold ?? 1),
+        1
+    );
 
     return (
         <>
             <style>{`
-                .aurora-dashboard {
-                    --aurora-bg: #f5f7fb;
-                    --aurora-card: #ffffff;
-                    --aurora-dark: #172033;
-                    --aurora-muted: #7c879b;
-                    --aurora-border: #e8ecf3;
-                    --aurora-purple: #7057d9;
-                    --aurora-purple-dark: #5842bd;
-                    --aurora-blue: #3b82f6;
-                    --aurora-green: #16a34a;
-                    --aurora-orange: #f59e0b;
-                    --aurora-red: #ef4444;
+                * {
+                    box-sizing: border-box;
+                }
 
+                .aurora-dashboard {
                     min-height: 100vh;
+                    padding: 30px;
                     background:
                         radial-gradient(
-                            circle at 0% 0%,
-                            rgba(112, 87, 217, 0.08),
+                            circle at 10% 0%,
+                            rgba(124, 58, 237, 0.08),
                             transparent 28%
                         ),
                         radial-gradient(
-                            circle at 100% 10%,
-                            rgba(59, 130, 246, 0.06),
+                            circle at 90% 10%,
+                            rgba(14, 165, 233, 0.07),
                             transparent 25%
                         ),
-                        var(--aurora-bg);
-                    padding: 30px;
+                        #f6f7fb;
                 }
 
                 .aurora-container {
-                    max-width: 1500px;
+                    width: 100%;
+                    max-width: 1580px;
                     margin: 0 auto;
                 }
 
+                /* =========================
+                   HEADER
+                ========================= */
+
                 .aurora-header {
-                    margin-bottom: 28px;
-                }
-
-                .aurora-brand {
-                    display: inline-flex;
+                    display: flex;
+                    justify-content: space-between;
                     align-items: center;
-                    gap: 9px;
-                    font-size: 12px;
-                    font-weight: 800;
-                    letter-spacing: 2.5px;
-                    color: var(--aurora-purple);
-                    text-transform: uppercase;
-                    margin-bottom: 9px;
+                    gap: 20px;
+                    margin-bottom: 24px;
                 }
 
-                .aurora-brand-dot {
-                    width: 9px;
-                    height: 9px;
-                    border-radius: 50%;
-                    background: var(--aurora-purple);
-                    box-shadow: 0 0 0 5px rgba(112, 87, 217, 0.10);
+                .aurora-header-left {
+                    display: flex;
+                    align-items: center;
+                    gap: 14px;
+                }
+
+                .aurora-logo {
+                    width: 52px;
+                    height: 52px;
+                    border-radius: 16px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    background: linear-gradient(
+                        135deg,
+                        #4c1d95,
+                        #7c3aed
+                    );
+                    color: #fff;
+                    font-size: 24px;
+                    font-weight: 800;
+                    box-shadow:
+                        0 10px 25px rgba(124, 58, 237, 0.25);
+                }
+
+                .aurora-brand-small {
+                    color: #7c3aed;
+                    font-size: 11px;
+                    font-weight: 800;
+                    letter-spacing: 2px;
+                    text-transform: uppercase;
+                    margin-bottom: 2px;
                 }
 
                 .aurora-title {
-                    font-size: clamp(28px, 3vw, 40px);
-                    line-height: 1.1;
-                    font-weight: 800;
-                    color: var(--aurora-dark);
                     margin: 0;
-                    letter-spacing: -1.2px;
+                    font-size: 25px;
+                    font-weight: 800;
+                    color: #172033;
                 }
 
                 .aurora-subtitle {
-                    color: var(--aurora-muted);
-                    margin: 9px 0 0;
-                    font-size: 15px;
+                    margin: 3px 0 0;
+                    color: #7a8497;
+                    font-size: 13px;
                 }
 
-                .aurora-stat-card {
+                .aurora-header-right {
+                    display: flex;
+                    align-items: center;
+                    gap: 12px;
+                }
+
+                .aurora-admin-pill {
+                    display: flex;
+                    align-items: center;
+                    gap: 10px;
+                    padding: 8px 13px;
+                    border-radius: 14px;
+                    background: #fff;
+                    border: 1px solid #e8eaf0;
+                    box-shadow: 0 8px 20px rgba(20, 25, 40, 0.05);
+                }
+
+                .aurora-admin-avatar {
+                    width: 38px;
+                    height: 38px;
+                    border-radius: 12px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    background: linear-gradient(
+                        135deg,
+                        #7c3aed,
+                        #a855f7
+                    );
+                    color: #fff;
+                    font-weight: 800;
+                }
+
+                .aurora-admin-name {
+                    color: #20283a;
+                    font-size: 13px;
+                    font-weight: 800;
+                }
+
+                .aurora-admin-role {
+                    color: #8992a5;
+                    font-size: 11px;
+                    margin-top: 2px;
+                }
+
+                .aurora-time-box {
+                    min-width: 145px;
+                    padding: 9px 14px;
+                    border-radius: 14px;
+                    background: #fff;
+                    border: 1px solid #e8eaf0;
+                    text-align: right;
+                    box-shadow: 0 8px 20px rgba(20, 25, 40, 0.05);
+                }
+
+                .aurora-date {
+                    color: #8992a5;
+                    font-size: 10px;
+                    margin-bottom: 2px;
+                }
+
+                .aurora-clock {
+                    color: #252d40;
+                    font-size: 14px;
+                    font-weight: 800;
+                }
+
+                /* =========================
+                   HERO
+                ========================= */
+
+                .aurora-hero {
                     position: relative;
                     overflow: hidden;
-                    background: var(--aurora-card);
-                    border: 1px solid var(--aurora-border);
-                    border-radius: 20px;
-                    padding: 23px;
-                    height: 100%;
-                    box-shadow: 0 8px 30px rgba(30, 41, 59, 0.045);
-                    transition:
-                        transform 0.25s ease,
-                        box-shadow 0.25s ease,
-                        border-color 0.25s ease;
+                    border-radius: 28px;
+                    padding: 30px;
+                    margin-bottom: 18px;
+                    color: #fff;
+                    background:
+                        radial-gradient(
+                            circle at 85% 15%,
+                            rgba(255,255,255,.16),
+                            transparent 25%
+                        ),
+                        linear-gradient(
+                            135deg,
+                            #17122e,
+                            #3b1b69 48%,
+                            #5b21b6
+                        );
+                    box-shadow:
+                        0 18px 40px rgba(76, 29, 149, 0.18);
                 }
 
-                .aurora-stat-card:hover {
-                    transform: translateY(-5px);
-                    border-color: rgba(112, 87, 217, 0.20);
-                    box-shadow: 0 16px 38px rgba(30, 41, 59, 0.09);
-                }
-
-                .aurora-stat-card::after {
+                .aurora-hero::before {
                     content: "";
                     position: absolute;
-                    width: 100px;
-                    height: 100px;
+                    width: 260px;
+                    height: 260px;
                     border-radius: 50%;
-                    right: -45px;
-                    top: -45px;
-                    background: rgba(112, 87, 217, 0.055);
+                    right: -90px;
+                    top: -130px;
+                    background: rgba(255,255,255,.07);
                 }
 
-                .aurora-stat-top {
+                .aurora-hero::after {
+                    content: "";
+                    position: absolute;
+                    width: 180px;
+                    height: 180px;
+                    border-radius: 50%;
+                    left: 42%;
+                    bottom: -120px;
+                    background: rgba(255,255,255,.05);
+                }
+
+                .aurora-hero-content {
+                    position: relative;
+                    z-index: 2;
+                }
+
+                .aurora-live-badge {
+                    display: inline-flex;
+                    align-items: center;
+                    gap: 7px;
+                    padding: 7px 11px;
+                    border-radius: 999px;
+                    background: rgba(255,255,255,.11);
+                    border: 1px solid rgba(255,255,255,.16);
+                    font-size: 11px;
+                    font-weight: 700;
+                    margin-bottom: 16px;
+                }
+
+                .aurora-live-dot {
+                    width: 8px;
+                    height: 8px;
+                    border-radius: 50%;
+                    background: #4ade80;
+                }
+
+                .aurora-revenue-label {
+                    color: rgba(255,255,255,.72);
+                    font-size: 12px;
+                    margin-bottom: 4px;
+                }
+
+                .aurora-revenue {
+                    font-size: 36px;
+                    font-weight: 900;
+                    letter-spacing: -1px;
+                }
+
+                .aurora-revenue-info {
+                    color: rgba(255,255,255,.72);
+                    font-size: 12px;
+                    margin-top: 4px;
+                }
+
+                .aurora-revenue-chip {
+                    display: inline-flex;
+                    margin-top: 14px;
+                    padding: 6px 10px;
+                    border-radius: 999px;
+                    background: rgba(34,197,94,.16);
+                    color: #bbf7d0;
+                    font-size: 11px;
+                    font-weight: 800;
+                }
+
+                /* =========================
+                   CHART
+                ========================= */
+
+                .aurora-chart {
+                    background: #fff;
+                    border: 1px solid #e8eaf0;
+                    border-radius: 23px;
+                    padding: 21px;
+                    margin-bottom: 18px;
+                    box-shadow: 0 10px 25px rgba(20,25,40,.05);
+                }
+
+                .aurora-chart-head {
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: flex-start;
+                    gap: 15px;
+                    margin-bottom: 18px;
+                }
+
+                .aurora-chart-title {
+                    color: #20283a;
+                    font-size: 16px;
+                    font-weight: 800;
+                }
+
+                .aurora-chart-total {
+                    color: #7c3aed;
+                    font-size: 17px;
+                    font-weight: 900;
+                }
+
+                .aurora-bars {
+                    height: 210px;
+                    display: flex;
+                    align-items: flex-end;
+                    gap: 5px;
+                    padding: 10px 0 0;
+                }
+
+                .aurora-bar-holder {
+                    flex: 1;
+                    height: 100%;
+                    display: flex;
+                    align-items: flex-end;
+                    min-width: 0;
+                }
+
+                .aurora-bar {
+                    width: 100%;
+                    min-height: 3px;
+                    border-radius: 8px 8px 2px 2px;
+                    background: linear-gradient(
+                        180deg,
+                        #8b5cf6,
+                        #4c1d95
+                    );
+                    transition: height .35s ease;
+                }
+
+                .aurora-chart-bottom {
+                    display: flex;
+                    justify-content: space-between;
+                    color: #9aa2b2;
+                    font-size: 10px;
+                    margin-top: 8px;
+                }
+
+                /* =========================
+                   STAT CARDS
+                ========================= */
+
+                .aurora-stat {
+                    position: relative;
+                    overflow: hidden;
+                    display: block;
+                    height: 100%;
+                    min-height: 155px;
+                    padding: 21px;
+                    color: #fff !important;
+                    text-decoration: none;
+                    border: 1px solid transparent !important;
+                    border-radius: 23px;
+                    isolation: isolate;
+                    box-shadow: 0 10px 25px rgba(20,25,40,.08);
+                    transition:
+                        box-shadow .25s ease,
+                        border-color .25s ease;
+                }
+
+                .aurora-stat::before {
+                    content: "";
+                    position: absolute;
+                    width: 150px;
+                    height: 150px;
+                    border-radius: 50%;
+                    right: -70px;
+                    top: -80px;
+                    background: rgba(255,255,255,.08);
+                    z-index: -1;
+                }
+
+                .aurora-stat::after {
+                    content: "";
+                    position: absolute;
+                    width: 110px;
+                    height: 110px;
+                    border-radius: 50%;
+                    left: -65px;
+                    bottom: -70px;
+                    background: rgba(255,255,255,.06);
+                    z-index: -1;
+                }
+
+                .aurora-stat-orders {
+                    background: linear-gradient(
+                        135deg,
+                        #5b21b6 0%,
+                        #6d28d9 45%,
+                        #7c3aed 100%
+                    );
+                    border-color: rgba(124,58,237,.35) !important;
+                }
+
+                .aurora-stat-orders:hover {
+                    box-shadow:
+                        0 22px 50px rgba(124,58,237,.42),
+                        0 0 35px rgba(139,92,246,.18);
+                    border-color: rgba(139,92,246,.75) !important;
+                }
+
+                .aurora-stat-revenue {
+                    background: linear-gradient(
+                        135deg,
+                        #075985 0%,
+                        #0369a1 45%,
+                        #0284c7 100%
+                    );
+                    border-color: rgba(2,132,199,.35) !important;
+                }
+
+                .aurora-stat-revenue:hover {
+                    box-shadow:
+                        0 22px 50px rgba(2,132,199,.42),
+                        0 0 35px rgba(14,165,233,.18);
+                    border-color: rgba(14,165,233,.75) !important;
+                }
+
+                .aurora-stat-customers {
+                    background: linear-gradient(
+                        135deg,
+                        #047857 0%,
+                        #059669 45%,
+                        #10b981 100%
+                    );
+                    border-color: rgba(16,185,129,.35) !important;
+                }
+
+                .aurora-stat-customers:hover {
+                    box-shadow:
+                        0 22px 50px rgba(5,150,105,.42),
+                        0 0 35px rgba(16,185,129,.18);
+                    border-color: rgba(52,211,153,.75) !important;
+                }
+
+                .aurora-stat-products {
+                    background: linear-gradient(
+                        135deg,
+                        #c2410c 0%,
+                        #ea580c 45%,
+                        #f97316 100%
+                    );
+                    border-color: rgba(249,115,22,.35) !important;
+                }
+
+                .aurora-stat-products:hover {
+                    box-shadow:
+                        0 22px 50px rgba(234,88,12,.42),
+                        0 0 35px rgba(249,115,22,.20);
+                    border-color: rgba(251,146,60,.80) !important;
+                }
+
+                .aurora-stat-head {
                     display: flex;
                     align-items: center;
                     justify-content: space-between;
                     gap: 12px;
-                    margin-bottom: 18px;
                 }
 
                 .aurora-stat-label {
-                    color: var(--aurora-muted);
-                    font-size: 13px;
+                    font-size: 12px;
                     font-weight: 700;
+                    color: rgba(255,255,255,.78);
                 }
 
                 .aurora-stat-icon {
-                    width: 42px;
-                    height: 42px;
+                    width: 40px;
+                    height: 40px;
+                    border-radius: 13px;
                     display: flex;
                     align-items: center;
                     justify-content: center;
-                    border-radius: 13px;
+                    background: rgba(255,255,255,.15);
+                    border: 1px solid rgba(255,255,255,.16);
+                    color: #fff;
                     font-size: 18px;
-                    background: rgba(112, 87, 217, 0.10);
+                    font-weight: 900;
                 }
 
                 .aurora-stat-value {
-                    color: var(--aurora-dark);
-                    font-size: 28px;
-                    font-weight: 800;
+                    margin-top: 13px;
+                    font-size: 29px;
                     line-height: 1;
+                    font-weight: 900;
                     letter-spacing: -0.7px;
                 }
 
-                .aurora-section-card {
-                    background: var(--aurora-card);
-                    border: 1px solid var(--aurora-border);
-                    border-radius: 22px;
-                    box-shadow: 0 8px 30px rgba(30, 41, 59, 0.045);
-                    overflow: hidden;
+                .aurora-stat-footer {
+                    margin-top: 17px;
+                    font-size: 11px;
+                    color: rgba(255,255,255,.72);
+                    font-weight: 700;
                 }
 
-                .aurora-section-header {
+                /* =========================
+                   GENERAL CARDS
+                ========================= */
+
+                .aurora-card {
+                    background: #fff;
+                    border: 1px solid #e8eaf0;
+                    border-radius: 23px;
+                    padding: 21px;
+                    height: 100%;
+                    box-shadow: 0 10px 25px rgba(20,25,40,.05);
+                    transition:
+                        box-shadow .25s ease,
+                        border-color .25s ease;
+                }
+
+                .aurora-card:hover {
+                    box-shadow: 0 18px 38px rgba(20,25,40,.08);
+                    border-color: #dddfea;
+                }
+
+                .aurora-card-head {
                     display: flex;
-                    align-items: center;
                     justify-content: space-between;
-                    gap: 15px;
-                    padding: 22px 24px;
-                    border-bottom: 1px solid var(--aurora-border);
+                    align-items: flex-start;
+                    gap: 12px;
+                    margin-bottom: 20px;
                 }
 
-                .aurora-section-title {
-                    color: var(--aurora-dark);
+                .aurora-card-title {
+                    color: #20283a;
                     font-size: 16px;
                     font-weight: 800;
-                    margin: 0;
                 }
 
-                .aurora-section-description {
-                    color: var(--aurora-muted);
-                    font-size: 12px;
-                    margin: 4px 0 0;
-                }
-
-                .aurora-range {
-                    border: 1px solid var(--aurora-border);
-                    background: #f8f9fc;
-                    color: #5d687d;
-                    border-radius: 10px;
-                    padding: 8px 12px;
-                    font-size: 12px;
-                    font-weight: 700;
-                }
-
-                .aurora-chart {
-                    padding: 25px 24px 20px;
-                }
-
-                .aurora-chart-area {
-                    height: 285px;
-                    position: relative;
-                    display: flex;
-                    align-items: end;
-                    gap: 5px;
-                    border-bottom: 1px solid var(--aurora-border);
-                    background:
-                        repeating-linear-gradient(
-                            to bottom,
-                            transparent 0,
-                            transparent 55px,
-                            rgba(226, 232, 240, 0.55) 56px
-                        );
-                    padding: 15px 5px 0;
-                }
-
-                .aurora-chart-bar-wrap {
-                    height: 100%;
-                    flex: 1;
-                    min-width: 5px;
-                    display: flex;
-                    align-items: end;
-                    justify-content: center;
-                }
-
-                .aurora-chart-bar {
-                    width: 65%;
-                    min-height: 3px;
-                    border-radius: 7px 7px 2px 2px;
-                    background: linear-gradient(
-                        180deg,
-                        #8069e5 0%,
-                        #6650ca 100%
-                    );
-                    box-shadow: 0 5px 12px rgba(112, 87, 217, 0.16);
-                    transition:
-                        height 0.35s ease,
-                        opacity 0.2s ease;
-                }
-
-                .aurora-chart-bar:hover {
-                    opacity: 0.72;
-                }
-
-                .aurora-chart-labels {
-                    display: flex;
-                    justify-content: space-between;
-                    color: #9aa4b5;
-                    font-size: 10px;
-                    padding: 9px 5px 0;
-                }
-
-                .aurora-product-grid {
-                    padding: 20px;
-                }
-
-                .aurora-product-box {
-                    display: flex;
-                    align-items: center;
-                    gap: 13px;
-                    text-decoration: none;
-                    color: inherit;
-                    min-height: 78px;
-                    padding: 12px;
-                    background: #f8f9fc;
-                    border: 1px solid #edf0f5;
-                    border-radius: 15px;
-                    transition:
-                        transform 0.22s ease,
-                        background 0.22s ease,
-                        border-color 0.22s ease,
-                        box-shadow 0.22s ease;
-                }
-
-                .aurora-product-box:hover {
-                    color: inherit;
-                    background: #ffffff;
-                    border-color: rgba(112, 87, 217, 0.24);
-                    transform: translateY(-3px);
-                    box-shadow: 0 10px 25px rgba(30, 41, 59, 0.07);
-                }
-
-                .aurora-product-image {
-                    width: 52px;
-                    height: 52px;
-                    flex: 0 0 52px;
-                    border-radius: 13px;
-                    background: #ffffff;
-                    border: 1px solid #e9edf4;
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                    overflow: hidden;
-                }
-
-                .aurora-product-image img {
-                    width: 100%;
-                    height: 100%;
-                    object-fit: cover;
-                }
-
-                .aurora-product-placeholder {
-                    font-size: 21px;
-                }
-
-                .aurora-product-name {
-                    font-size: 13px;
-                    font-weight: 800;
-                    color: var(--aurora-dark);
-                    margin-bottom: 4px;
-                    white-space: nowrap;
-                    overflow: hidden;
-                    text-overflow: ellipsis;
-                    max-width: 170px;
-                }
-
-                .aurora-product-meta {
+                .aurora-card-desc {
+                    color: #929aab;
                     font-size: 11px;
-                    color: var(--aurora-muted);
+                    margin-top: 4px;
                 }
 
-                .aurora-product-arrow {
-                    margin-left: auto;
-                    color: var(--aurora-purple);
-                    font-size: 17px;
-                    font-weight: 700;
-                }
-
-                .aurora-top-product {
-                    display: flex;
-                    align-items: center;
-                    gap: 13px;
-                    padding: 15px 20px;
-                    border-bottom: 1px solid #f0f2f6;
-                    transition: background 0.2s ease;
-                }
-
-                .aurora-top-product:last-child {
-                    border-bottom: 0;
-                }
-
-                .aurora-top-product:hover {
-                    background: #fafbfe;
-                }
-
-                .aurora-rank {
-                    width: 31px;
-                    height: 31px;
-                    border-radius: 10px;
-                    background: rgba(112, 87, 217, 0.10);
-                    color: var(--aurora-purple);
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                    font-size: 12px;
+                .aurora-view-link {
+                    color: #7c3aed;
+                    text-decoration: none;
+                    font-size: 11px;
                     font-weight: 800;
                 }
 
-                .aurora-top-name {
-                    flex: 1;
-                    min-width: 0;
-                    font-size: 13px;
-                    font-weight: 750;
-                    color: var(--aurora-dark);
-                    white-space: nowrap;
-                    overflow: hidden;
-                    text-overflow: ellipsis;
+                .aurora-view-link:hover {
+                    color: #5b21b6;
                 }
 
-                .aurora-top-sales {
-                    text-align: right;
-                    font-size: 12px;
-                    color: var(--aurora-muted);
-                    white-space: nowrap;
-                }
+                /* =========================
+                   STORE PULSE
+                ========================= */
 
-                .aurora-top-sales strong {
-                    display: block;
-                    color: var(--aurora-dark);
-                    font-size: 13px;
-                }
-
-                .aurora-status-list {
-                    padding: 10px 20px 16px;
+                .aurora-pulse {
+                    display: flex;
+                    flex-direction: column;
+                    gap: 16px;
                 }
 
                 .aurora-status-row {
                     display: flex;
+                    flex-direction: column;
+                    gap: 8px;
+                }
+
+                .aurora-status-head {
+                    display: flex;
                     align-items: center;
-                    gap: 12px;
-                    padding: 13px 0;
-                    border-bottom: 1px solid #f0f2f6;
-                }
-
-                .aurora-status-row:last-child {
-                    border-bottom: 0;
-                }
-
-                .aurora-status-dot {
-                    width: 10px;
-                    height: 10px;
-                    border-radius: 50%;
-                    flex: 0 0 10px;
+                    justify-content: space-between;
                 }
 
                 .aurora-status-name {
-                    flex: 1;
-                    color: #566176;
-                    font-size: 13px;
-                    font-weight: 650;
-                    text-transform: capitalize;
+                    display: flex;
+                    align-items: center;
+                    gap: 8px;
+                    color: #424b5f;
+                    font-size: 12px;
+                    font-weight: 700;
                 }
 
                 .aurora-status-count {
-                    min-width: 42px;
-                    padding: 5px 9px;
-                    border-radius: 9px;
-                    background: #f4f6fa;
-                    color: var(--aurora-dark);
-                    text-align: center;
+                    color: #20283a;
                     font-size: 12px;
-                    font-weight: 800;
+                    font-weight: 900;
+                }
+
+                .aurora-status-dot {
+                    width: 8px;
+                    height: 8px;
+                    border-radius: 50%;
                 }
 
                 .status-pending {
@@ -655,7 +818,7 @@ db.query(`
                 }
 
                 .status-processing {
-                    background: #3b82f6;
+                    background: #0ea5e9;
                 }
 
                 .status-shipped {
@@ -663,215 +826,705 @@ db.query(`
                 }
 
                 .status-delivered {
-                    background: #16a34a;
+                    background: #10b981;
                 }
 
-                .aurora-action-box {
+                .aurora-progress {
+                    width: 100%;
+                    height: 7px;
+                    overflow: hidden;
+                    border-radius: 999px;
+                    background: #f0f1f5;
+                }
+
+                .aurora-progress-fill {
+                    height: 100%;
+                    border-radius: inherit;
+                    transition: width .4s ease;
+                }
+
+                .fill-pending {
+                    background: #f59e0b;
+                }
+
+                .fill-processing {
+                    background: #0ea5e9;
+                }
+
+                .fill-shipped {
+                    background: #8b5cf6;
+                }
+
+                .fill-delivered {
+                    background: #10b981;
+                }
+
+                /* =========================
+                   TOP PRODUCTS
+                ========================= */
+
+                .aurora-top-row {
                     display: flex;
                     align-items: center;
                     gap: 12px;
-                    min-height: 72px;
-                    padding: 14px 16px;
-                    border-radius: 15px;
-                    border: 1px solid var(--aurora-border);
-                    background: #ffffff;
-                    color: var(--aurora-dark);
-                    text-decoration: none;
-                    transition:
-                        transform 0.22s ease,
-                        box-shadow 0.22s ease,
-                        border-color 0.22s ease;
+                    padding: 11px 0;
+                    border-bottom: 1px solid #f0f1f5;
                 }
 
-                .aurora-action-box:hover {
-                    color: var(--aurora-dark);
-                    transform: translateY(-3px);
-                    border-color: rgba(112, 87, 217, 0.25);
-                    box-shadow: 0 10px 25px rgba(30, 41, 59, 0.07);
+                .aurora-top-row:last-child {
+                    border-bottom: none;
+                }
+
+                .aurora-rank {
+                    width: 24px;
+                    color: #929aab;
+                    font-size: 11px;
+                    font-weight: 900;
+                    text-align: center;
+                }
+
+                .aurora-top-img {
+                    width: 48px;
+                    height: 48px;
+                    flex: 0 0 48px;
+                    border-radius: 13px;
+                    overflow: hidden;
+                    background: #f4f5f8;
+                }
+
+                .aurora-top-img img {
+                    width: 100%;
+                    height: 100%;
+                    object-fit: cover;
+                }
+
+                .aurora-top-info {
+                    flex: 1;
+                    min-width: 0;
+                }
+
+                .aurora-top-name {
+                    color: #30394b;
+                    font-size: 12px;
+                    font-weight: 800;
+                    white-space: nowrap;
+                    overflow: hidden;
+                    text-overflow: ellipsis;
+                    margin-bottom: 7px;
+                }
+
+                .aurora-top-progress {
+                    height: 5px;
+                    overflow: hidden;
+                    border-radius: 999px;
+                    background: #f0f1f5;
+                }
+
+                .aurora-top-progress-fill {
+                    height: 100%;
+                    border-radius: inherit;
+                    background: linear-gradient(
+                        90deg,
+                        #7c3aed,
+                        #a855f7
+                    );
+                }
+
+                .aurora-top-number {
+                    min-width: 52px;
+                    text-align: right;
+                    color: #929aab;
+                    font-size: 10px;
+                }
+
+                .aurora-top-number strong {
+                    display: block;
+                    color: #30394b;
+                    font-size: 12px;
+                    font-weight: 900;
+                }
+
+                .aurora-top-number span {
+                    font-size: 9px;
+                }
+
+                /* =========================
+                   QUICK ACTIONS
+                ========================= */
+
+                .aurora-action {
+                    position: relative;
+                    overflow: hidden;
+                    display: flex;
+                    align-items: center;
+                    gap: 14px;
+                    min-height: 92px;
+                    padding: 17px;
+                    border-radius: 20px;
+                    text-decoration: none;
+                    color: #fff !important;
+                    border: 1px solid transparent;
+                    transition:
+                        box-shadow .25s ease,
+                        border-color .25s ease,
+                        background .25s ease;
+                }
+
+                .aurora-action::before {
+                    content: "";
+                    position: absolute;
+                    width: 130px;
+                    height: 130px;
+                    border-radius: 50%;
+                    right: -75px;
+                    top: -70px;
+                    background: rgba(255,255,255,.08);
+                    pointer-events: none;
+                }
+
+                .aurora-action-products {
+                    background: linear-gradient(
+                        135deg,
+                        #4338ca,
+                        #6366f1
+                    );
+                    border-color: rgba(99,102,241,.35);
+                }
+
+                .aurora-action-products:hover {
+                    background: linear-gradient(
+                        135deg,
+                        #3730a3,
+                        #4f46e5
+                    );
+                    border-color: rgba(129,140,248,.75);
+                    box-shadow:
+                        0 18px 38px rgba(79,70,229,.30),
+                        0 0 25px rgba(99,102,241,.14);
+                }
+
+                .aurora-action-add {
+                    background: linear-gradient(
+                        135deg,
+                        #047857,
+                        #10b981
+                    );
+                    border-color: rgba(16,185,129,.35);
+                }
+
+                .aurora-action-add:hover {
+                    background: linear-gradient(
+                        135deg,
+                        #065f46,
+                        #059669
+                    );
+                    border-color: rgba(52,211,153,.75);
+                    box-shadow:
+                        0 18px 38px rgba(5,150,105,.30),
+                        0 0 25px rgba(16,185,129,.14);
+                }
+
+                .aurora-action-store {
+                    background: linear-gradient(
+                        135deg,
+                        #c2410c,
+                        #f97316
+                    );
+                    border-color: rgba(249,115,22,.35);
+                }
+
+                .aurora-action-store:hover {
+                    background: linear-gradient(
+                        135deg,
+                        #9a3412,
+                        #ea580c
+                    );
+                    border-color: rgba(251,146,60,.75);
+                    box-shadow:
+                        0 18px 38px rgba(234,88,12,.30),
+                        0 0 25px rgba(249,115,22,.14);
                 }
 
                 .aurora-action-icon {
-                    width: 42px;
-                    height: 42px;
-                    border-radius: 12px;
+                    position: relative;
+                    z-index: 2;
+                    width: 48px;
+                    height: 48px;
+                    flex: 0 0 48px;
                     display: flex;
                     align-items: center;
                     justify-content: center;
-                    background: rgba(112, 87, 217, 0.10);
-                    font-size: 18px;
+                    border-radius: 15px;
+                    background: rgba(255,255,255,.15);
+                    border: 1px solid rgba(255,255,255,.16);
+                    font-size: 20px;
+                }
+
+                .aurora-action-content {
+                    position: relative;
+                    z-index: 2;
+                    flex: 1;
+                    min-width: 0;
                 }
 
                 .aurora-action-title {
+                    color: #fff;
                     font-size: 13px;
+                    font-weight: 900;
+                }
+
+                .aurora-action-desc {
+                    color: rgba(255,255,255,.72);
+                    font-size: 10px;
+                    margin-top: 3px;
+                }
+
+                .aurora-action-arrow {
+                    position: relative;
+                    z-index: 2;
+                    color: rgba(255,255,255,.75);
+                    font-size: 18px;
                     font-weight: 800;
                 }
 
-                .aurora-action-subtitle {
-                    color: var(--aurora-muted);
-                    font-size: 10px;
-                    margin-top: 2px;
-                }
+                /* =========================
+                   RESPONSIVE
+                ========================= */
 
-                @media (max-width: 991.98px) {
+                @media (max-width: 1100px) {
                     .aurora-dashboard {
                         padding: 22px;
                     }
 
-                    .aurora-chart-area {
-                        height: 240px;
+                    .aurora-header-right {
+                        gap: 8px;
+                    }
+
+                    .aurora-time-box {
+                        display: none;
                     }
                 }
 
-                @media (max-width: 575.98px) {
+                @media (max-width: 991px) {
+                    .aurora-header {
+                        align-items: flex-start;
+                    }
+
+                    .aurora-header-right {
+                        flex-direction: column;
+                        align-items: flex-end;
+                    }
+
+                    .aurora-hero {
+                        padding: 25px;
+                    }
+                }
+
+                @media (max-width: 700px) {
                     .aurora-dashboard {
                         padding: 15px;
                     }
 
+                    .aurora-header {
+                        flex-direction: column;
+                    }
+
+                    .aurora-header-right {
+                        width: 100%;
+                        align-items: stretch;
+                    }
+
+                    .aurora-admin-pill {
+                        width: 100%;
+                    }
+
                     .aurora-title {
-                        font-size: 29px;
+                        font-size: 21px;
                     }
 
-                    .aurora-section-header {
-                        padding: 18px;
+                    .aurora-hero {
+                        border-radius: 21px;
                     }
 
-                    .aurora-chart {
-                        padding: 20px 15px 17px;
+                    .aurora-revenue {
+                        font-size: 30px;
                     }
 
-                    .aurora-chart-area {
-                        height: 210px;
+                    .aurora-bars {
+                        height: 160px;
+                    }
+                }
+
+                @media (max-width: 450px) {
+                    .aurora-dashboard {
+                        padding: 10px;
                     }
 
-                    .aurora-range {
-                        display: none;
+                    .aurora-logo {
+                        width: 45px;
+                        height: 45px;
                     }
 
-                    .aurora-product-grid {
-                        padding: 15px;
+                    .aurora-title {
+                        font-size: 19px;
+                    }
+
+                    .aurora-stat {
+                        min-height: 140px;
+                        padding: 17px;
+                    }
+
+                    .aurora-stat-value {
+                        font-size: 24px;
+                    }
+
+                    .aurora-action {
+                        min-height: 82px;
                     }
                 }
             `}</style>
 
+            <script
+                dangerouslySetInnerHTML={{
+                    __html: `
+                        (() => {
+                            const updateAuroraDashboard = () => {
+                                const clock =
+                                    document.getElementById(
+                                        "aurora-live-clock"
+                                    );
+
+                                const date =
+                                    document.getElementById(
+                                        "aurora-live-date"
+                                    );
+
+                                const greeting =
+                                    document.getElementById(
+                                        "aurora-time-greeting"
+                                    );
+
+                                if (!clock || !date) return;
+
+                                const now = new Date();
+
+                                clock.textContent =
+                                    now.toLocaleTimeString(
+                                        "en-IN",
+                                        {
+                                            hour: "2-digit",
+                                            minute: "2-digit",
+                                            second: "2-digit",
+                                            hour12: true
+                                        }
+                                    );
+
+                                date.textContent =
+                                    now.toLocaleDateString(
+                                        "en-IN",
+                                        {
+                                            weekday: "long",
+                                            day: "2-digit",
+                                            month: "long",
+                                            year: "numeric"
+                                        }
+                                    );
+
+                                if (greeting) {
+                                    const hour = now.getHours();
+
+                                    let message = "Good Evening";
+
+                                    if (hour >= 5 && hour < 12) {
+                                        message = "Good Morning";
+                                    } else if (
+                                        hour >= 12 &&
+                                        hour < 17
+                                    ) {
+                                        message = "Good Afternoon";
+                                    } else if (
+                                        hour >= 17 &&
+                                        hour < 21
+                                    ) {
+                                        message = "Good Evening";
+                                    } else {
+                                        message = "Good Night";
+                                    }
+
+                                    greeting.textContent =
+                                        message + ", ${user.name} 👋";
+                                }
+                            };
+
+                            updateAuroraDashboard();
+
+                            if (
+                                !window.__auroraDashboardStarted
+                            ) {
+                                window.__auroraDashboardStarted = true;
+
+                                setInterval(
+                                    updateAuroraDashboard,
+                                    1000
+                                );
+                            }
+                        })();
+                    `,
+                }}
+            />
+
             <main className="aurora-dashboard">
                 <div className="aurora-container">
 
-                    {/* =====================================================
+                    {/* =========================
                         HEADER
-                    ====================================================== */}
+                    ========================= */}
 
                     <header className="aurora-header">
-                        <div className="aurora-brand">
-                            <span className="aurora-brand-dot" />
-                            AURORA CONTROL
+                        <div className="aurora-header-left">
+                            <div className="aurora-logo">
+                                A
+                            </div>
+
+                            <div>
+                                <div
+                                    id="aurora-time-greeting"
+                                    className="aurora-title"
+                                    style={{
+                                        color: "#172033",
+                                        fontSize: "25px",
+                                        fontWeight: 800,
+                                        marginBottom: "4px",
+                                    }}
+                                >
+                                    Good Evening, {user.name} 👋
+                                </div>
+
+                                <p className="aurora-subtitle">
+                                    Monitor your store performance and operations.
+                                </p>
+                            </div>
                         </div>
 
-                        <h1 className="aurora-title">
-                            Admin Dashboard
-                        </h1>
+                        <div className="aurora-header-right">
+                            <div className="aurora-admin-pill">
+                                <div className="aurora-admin-avatar">
+                                    {user.name?.charAt(0).toUpperCase() || "A"}
+                                </div>
 
-                        <p className="aurora-subtitle">
-                            Manage your storefront from one clean workspace.
-                        </p>
+                                <div>
+                                    <div className="aurora-admin-name">
+                                        {user.name}
+                                    </div>
+
+                                    <div className="aurora-admin-role">
+                                        Administrator
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="aurora-time-box">
+                                <div
+                                    className="aurora-date"
+                                    id="aurora-live-date"
+                                >
+                                    Loading...
+                                </div>
+
+                                <div
+                                    className="aurora-clock"
+                                    id="aurora-live-clock"
+                                >
+                                    --:--:--
+                                </div>
+                            </div>
+                        </div>
                     </header>
 
+                    {/* =========================
+                        HERO
+                    ========================= */}
 
-                    {/* =====================================================
-                        TOP STAT CARDS
-                    ====================================================== */}
+                    <section className="aurora-hero">
+                        <div className="aurora-hero-content">
 
-                    
-<div className="row g-3 mb-4">
+                            <div className="aurora-live-badge">
+                                <span className="aurora-live-dot" />
+                                Store is live
+                            </div>
 
-    {/* Orders */}
-    <div className="col-12 col-sm-6 col-xl-3">
-        <Link
-            href="/admin/orders"
-            className="text-decoration-none d-block h-100"
-        >
-            <div className="aurora-stat-card h-100">
-                <div className="aurora-stat-top">
-                    <span className="aurora-stat-label">
-                        Orders
-                    </span>
+                            <div className="aurora-revenue-label">
+                                Total Store Revenue
+                            </div>
 
-                    <div className="aurora-stat-icon">
-                        🛍️
-                    </div>
-                </div>
+                            <div className="aurora-revenue">
+                                {money(Number(stats.revenue))}
+                            </div>
 
-                <div className="aurora-stat-value">
-                    {Number(
-                        stats.orders_count
-                    ).toLocaleString("en-IN")}
-                </div>
-            </div>
-        </Link>
-    </div>
+                            <div className="aurora-revenue-info">
+                                Revenue from all non-cancelled orders
+                            </div>
 
+                            <div className="aurora-revenue-chip">
+                                30 Day Revenue: {money(total30DayRevenue)}
+                            </div>
 
-    {/* Revenue */}
-    <div className="col-12 col-sm-6 col-xl-3">
-        <Link
-            href="/admin/revenue"
-            className="text-decoration-none d-block h-100"
-        >
-            <div className="aurora-stat-card h-100">
-                <div className="aurora-stat-top">
-                    <span className="aurora-stat-label">
-                        Revenue
-                    </span>
+                        </div>
+                    </section>
 
-                    <div className="aurora-stat-icon">
-                        ₹
-                    </div>
-                </div>
+                    {/* =========================
+                        SALES CHART
+                    ========================= */}
 
-                <div className="aurora-stat-value">
-                    {money(Number(stats.revenue))}
-                </div>
-            </div>
-        </Link>
-    </div>
+                    <section className="aurora-chart">
+                        <div className="aurora-chart-head">
+                            <div>
+                                <div className="aurora-chart-title">
+                                    Sales Overview
+                                </div>
 
+                                <div className="aurora-card-desc">
+                                    Revenue performance over the last 30 days
+                                </div>
+                            </div>
 
-    {/* Customers */}
-    <div className="col-12 col-sm-6 col-xl-3">
-        <Link
-            href="/admin/customers"
-            className="text-decoration-none d-block h-100"
-        >
-            <div className="aurora-stat-card h-100">
-                <div className="aurora-stat-top">
-                    <span className="aurora-stat-label">
-                        Customers
-                    </span>
+                            <div className="aurora-chart-total">
+                                {money(total30DayRevenue)}
+                            </div>
+                        </div>
 
-                    <div className="aurora-stat-icon">
-                        👥
-                    </div>
-                </div>
+                        <div className="aurora-bars">
+                            {chartData.map((item) => (
+                                <div
+                                    className="aurora-bar-holder"
+                                    key={item.date}
+                                    title={`${item.label}: ${money(
+                                        Number(item.revenue)
+                                    )}`}
+                                >
+                                    <div
+                                        className="aurora-bar"
+                                        style={{
+                                            height: `${Math.max(
+                                                (Number(item.revenue) /
+                                                    maxRevenue) *
+                                                    100,
+                                                Number(item.revenue) > 0
+                                                    ? 4
+                                                    : 1
+                                            )}%`,
+                                        }}
+                                    />
+                                </div>
+                            ))}
+                        </div>
 
-                <div className="aurora-stat-value">
-                    {Number(
-                        customers.customers_count
-                    ).toLocaleString("en-IN")}
-                </div>
-            </div>
-        </Link>
-    </div>
+                        <div className="aurora-chart-bottom">
+                            <span>
+                                {chartData[0]?.label}
+                            </span>
 
+                            <span>
+                                Last 30 Days
+                            </span>
 
+                            <span>
+                                {chartData[chartData.length - 1]?.label}
+                            </span>
+                        </div>
+                    </section>
 
+                    {/* =========================
+                        STAT CARDS
+                    ========================= */}
 
+                    <div className="row g-3 mb-4">
 
-                        {/* Products */}
-                        <div className="col-12 col-sm-6 col-xl-3">
+                        <div className="col-6 col-xl-3">
+                            <Link
+                                href="/admin/orders"
+                                className="aurora-stat aurora-stat-orders"
+                            >
+                                <div className="aurora-stat-head">
+                                    <span className="aurora-stat-label">
+                                        Orders
+                                    </span>
+
+                                    <div className="aurora-stat-icon">
+                                        🛍
+                                    </div>
+                                </div>
+
+                                <div className="aurora-stat-value">
+                                    {Number(
+                                        stats.orders_count
+                                    ).toLocaleString("en-IN")}
+                                </div>
+
+                                <div className="aurora-stat-footer">
+                                    View all orders →
+                                </div>
+                            </Link>
+                        </div>
+
+                        <div className="col-6 col-xl-3">
+                            <Link
+                                href="/admin/revenue"
+                                className="aurora-stat aurora-stat-revenue"
+                            >
+                                <div className="aurora-stat-head">
+                                    <span className="aurora-stat-label">
+                                        Revenue
+                                    </span>
+
+                                    <div className="aurora-stat-icon">
+                                        ₹
+                                    </div>
+                                </div>
+
+                                <div className="aurora-stat-value">
+                                    {money(Number(stats.revenue))}
+                                </div>
+
+                                <div className="aurora-stat-footer">
+                                    Revenue analytics →
+                                </div>
+                            </Link>
+                        </div>
+
+                        <div className="col-6 col-xl-3">
+                            <Link
+                                href="/admin/customers"
+                                className="aurora-stat aurora-stat-customers"
+                            >
+                                <div className="aurora-stat-head">
+                                    <span className="aurora-stat-label">
+                                        Customers
+                                    </span>
+
+                                    <div className="aurora-stat-icon">
+                                        👥
+                                    </div>
+                                </div>
+
+                                <div className="aurora-stat-value">
+                                    {Number(
+                                        customers.customers_count
+                                    ).toLocaleString("en-IN")}
+                                </div>
+
+                                <div className="aurora-stat-footer">
+                                    Customer directory →
+                                </div>
+                            </Link>
+                        </div>
+
+                        <div className="col-6 col-xl-3">
                             <Link
                                 href="/admin/products"
-                                className="aurora-stat-card d-block text-decoration-none"
+                                className="aurora-stat aurora-stat-products"
                             >
-                                <div className="aurora-stat-top">
+                                <div className="aurora-stat-head">
                                     <span className="aurora-stat-label">
                                         Products
                                     </span>
@@ -882,430 +1535,354 @@ db.query(`
                                 </div>
 
                                 <div className="aurora-stat-value">
-                                    {products.length > 0
-                                        ? "View"
-                                        : "Products"}
+                                    {Number(
+                                        productCount.products_count
+                                    ).toLocaleString("en-IN")}
+                                </div>
+
+                                <div className="aurora-stat-footer">
+                                    Manage products →
                                 </div>
                             </Link>
                         </div>
+
                     </div>
 
+                    {/* =========================
+                        ORDER STATUS + TOP PRODUCTS
+                    ========================= */}
 
-                    {/* =====================================================
-                        SALES OVERVIEW
-                    ====================================================== */}
+                    <div className="row g-3 mb-4">
 
-                    <section className="aurora-section-card mb-4">
+                        <div className="col-lg-6">
+                            <section className="aurora-card">
 
-                        <div className="aurora-section-header">
-                            <div>
-                                <h2 className="aurora-section-title">
-                                    Sales Overview
-                                </h2>
+                                <div className="aurora-card-head">
+                                    <div>
+                                        <div className="aurora-card-title">
+                                            Order Status
+                                        </div>
 
-                                <p className="aurora-section-description">
-                                    Store revenue performance for the last
-                                    30 days
-                                </p>
-                            </div>
+                                        <div className="aurora-card-desc">
+                                            Current order distribution
+                                        </div>
+                                    </div>
 
-                            <div className="aurora-range">
-                                Last 30 Days
-                            </div>
-                        </div>
+                                    <Link
+                                        href="/admin/orders"
+                                        className="aurora-view-link"
+                                    >
+                                        View Orders →
+                                    </Link>
+                                </div>
 
-                        <div className="aurora-chart">
+                                <div className="aurora-pulse">
 
-                            <div className="aurora-chart-area">
-                                {chartData.map((item) => {
-                                    const height =
-                                        item.revenue === 0
-                                            ? 3
-                                            : Math.max(
-                                                  (item.revenue /
-                                                      maxRevenue) *
-                                                      100,
-                                                  5
-                                              );
+                                    <div className="aurora-status-row">
+                                        <div className="aurora-status-head">
+                                            <div className="aurora-status-name">
+                                                <span className="aurora-status-dot status-pending" />
+                                                Pending
+                                            </div>
 
-                                    return (
-                                        <div
-                                            key={item.date}
-                                            className="aurora-chart-bar-wrap"
-                                            title={`${item.label}: ${money(
-                                                item.revenue
-                                            )}`}
-                                        >
+                                            <div className="aurora-status-count">
+                                                {pendingCount}
+                                            </div>
+                                        </div>
+
+                                        <div className="aurora-progress">
                                             <div
-                                                className="aurora-chart-bar"
+                                                className="aurora-progress-fill fill-pending"
                                                 style={{
-                                                    height: `${height}%`,
+                                                    width: `${getPercentage(
+                                                        pendingCount
+                                                    )}%`,
                                                 }}
                                             />
                                         </div>
-                                    );
-                                })}
-                            </div>
+                                    </div>
 
-                            <div className="aurora-chart-labels">
-                                <span>
-                                    {chartData[0]?.label}
-                                </span>
+                                    <div className="aurora-status-row">
+                                        <div className="aurora-status-head">
+                                            <div className="aurora-status-name">
+                                                <span className="aurora-status-dot status-processing" />
+                                                Processing
+                                            </div>
 
-                                <span>
-                                    {chartData[14]?.label}
-                                </span>
+                                            <div className="aurora-status-count">
+                                                {processingCount}
+                                            </div>
+                                        </div>
 
-                                <span>
-                                    {chartData[29]?.label}
-                                </span>
-                            </div>
+                                        <div className="aurora-progress">
+                                            <div
+                                                className="aurora-progress-fill fill-processing"
+                                                style={{
+                                                    width: `${getPercentage(
+                                                        processingCount
+                                                    )}%`,
+                                                }}
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div className="aurora-status-row">
+                                        <div className="aurora-status-head">
+                                            <div className="aurora-status-name">
+                                                <span className="aurora-status-dot status-shipped" />
+                                                Shipped
+                                            </div>
+
+                                            <div className="aurora-status-count">
+                                                {shippedCount}
+                                            </div>
+                                        </div>
+
+                                        <div className="aurora-progress">
+                                            <div
+                                                className="aurora-progress-fill fill-shipped"
+                                                style={{
+                                                    width: `${getPercentage(
+                                                        shippedCount
+                                                    )}%`,
+                                                }}
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div className="aurora-status-row">
+                                        <div className="aurora-status-head">
+                                            <div className="aurora-status-name">
+                                                <span className="aurora-status-dot status-delivered" />
+                                                Delivered
+                                            </div>
+
+                                            <div className="aurora-status-count">
+                                                {deliveredCount}
+                                            </div>
+                                        </div>
+
+                                        <div className="aurora-progress">
+                                            <div
+                                                className="aurora-progress-fill fill-delivered"
+                                                style={{
+                                                    width: `${getPercentage(
+                                                        deliveredCount
+                                                    )}%`,
+                                                }}
+                                            />
+                                        </div>
+                                    </div>
+
+                                </div>
+                            </section>
                         </div>
-                    </section>
 
+                        <div className="col-lg-6">
+                            <section className="aurora-card">
 
-                    {/* =====================================================
-                        PRODUCTS + ORDER STATUS
-                    ====================================================== */}
-
-                    <div className="row g-4 mb-4">
-
-                        {/* Products */}
-                        <div className="col-12 col-lg-7">
-                            <section className="aurora-section-card h-100">
-
-                                <div className="aurora-section-header">
+                                <div className="aurora-card-head">
                                     <div>
-                                        <h2 className="aurora-section-title">
-                                            Products
-                                        </h2>
+                                        <div className="aurora-card-title">
+                                            Top Products
+                                        </div>
 
-                                        <p className="aurora-section-description">
-                                            Quick access to your product
-                                            management
-                                        </p>
+                                        <div className="aurora-card-desc">
+                                            Best performing products
+                                        </div>
                                     </div>
 
                                     <Link
                                         href="/admin/products"
-                                        className="btn btn-sm btn-outline-secondary rounded-pill px-3"
+                                        className="aurora-view-link"
                                     >
-                                        View All
+                                        View Products →
                                     </Link>
                                 </div>
 
-                                <div className="aurora-product-grid">
-                                    <div className="row g-3">
-
-                                        {products.map((product) => (
+                                {topProducts.length === 0 ? (
+                                    <div className="text-muted small">
+                                        No product sales data available.
+                                    </div>
+                                ) : (
+                                    topProducts.map(
+                                        (product, index) => (
                                             <div
+                                                className="aurora-top-row"
                                                 key={product.id}
-                                                className="col-12 col-sm-6"
                                             >
-                                                <Link
-                                                    href="/admin/products"
-                                                    className="aurora-product-box"
-                                                >
-                                                    <div className="aurora-product-image">
-                                                        {product.image_url ? (
-                                                            <img
-                                                                src={
-                                                                    product.image_url
-                                                                }
-                                                                alt={
-                                                                    product.name
-                                                                }
-                                                            />
-                                                        ) : (
-                                                            <span className="aurora-product-placeholder">
-                                                                📦
-                                                            </span>
+                                                <div className="aurora-rank">
+                                                    #{index + 1}
+                                                </div>
+
+                                                <div className="aurora-top-img">
+                                                    {product.image_url ? (
+                                                        <img
+                                                            src={
+                                                                product.image_url
+                                                            }
+                                                            alt={
+                                                                product.name
+                                                            }
+                                                        />
+                                                    ) : (
+                                                        <div
+                                                            style={{
+                                                                width: "100%",
+                                                                height: "100%",
+                                                                display:
+                                                                    "flex",
+                                                                alignItems:
+                                                                    "center",
+                                                                justifyContent:
+                                                                    "center",
+                                                                fontSize:
+                                                                    "18px",
+                                                            }}
+                                                        >
+                                                            📦
+                                                        </div>
+                                                    )}
+                                                </div>
+
+                                                <div className="aurora-top-info">
+                                                    <div className="aurora-top-name">
+                                                        {product.name}
+                                                    </div>
+
+                                                    <div className="aurora-top-progress">
+                                                        <div
+                                                            className="aurora-top-progress-fill"
+                                                            style={{
+                                                                width: `${Math.max(
+                                                                    (Number(
+                                                                        product.total_sold
+                                                                    ) /
+                                                                        highestSales) *
+                                                                        100,
+                                                                    Number(
+                                                                        product.total_sold
+                                                                    ) > 0
+                                                                        ? 5
+                                                                        : 0
+                                                                )}%`,
+                                                            }}
+                                                        />
+                                                    </div>
+                                                </div>
+
+                                                <div className="aurora-top-number">
+                                                    <strong>
+                                                        {Number(
+                                                            product.total_sold
                                                         )}
-                                                    </div>
+                                                    </strong>
 
-                                                    <div className="min-w-0">
-                                                        <div className="aurora-product-name">
-                                                            {product.name}
-                                                        </div>
-
-                                                        <div className="aurora-product-meta">
-                                                            {money(
-                                                                Number(
-                                                                    product.price
-                                                                )
-                                                            )}{" "}
-                                                            ·{" "}
-                                                            {Number(
-                                                                product.stock
-                                                            ).toLocaleString(
-                                                                "en-IN"
-                                                            )}{" "}
-                                                            in stock
-                                                        </div>
-                                                    </div>
-
-                                                    <span className="aurora-product-arrow">
-                                                        →
+                                                    <span>
+                                                        sold
                                                     </span>
-                                                </Link>
-                                            </div>
-                                        ))}
-
-                                        {products.length === 0 && (
-                                            <div className="col-12">
-                                                <div className="text-center text-secondary py-4">
-                                                    No products available.
                                                 </div>
                                             </div>
-                                        )}
+                                        )
+                                    )
+                                )}
 
-                                    </div>
-                                </div>
                             </section>
                         </div>
 
-
-                        {/* Order Status */}
-                        <div className="col-12 col-lg-5">
-                            <section className="aurora-section-card h-100">
-
-                                <div className="aurora-section-header">
-                                    <div>
-                                        <h2 className="aurora-section-title">
-                                            Order Status
-                                        </h2>
-
-                                        <p className="aurora-section-description">
-                                            Current order distribution
-                                        </p>
-                                    </div>
-                                </div>
-
-                                <div className="aurora-status-list">
-
-                                    <div className="aurora-status-row">
-                                        <span className="aurora-status-dot status-pending" />
-
-                                        <span className="aurora-status-name">
-                                            Pending
-                                        </span>
-
-                                        <span className="aurora-status-count">
-                                            {pendingCount}
-                                        </span>
-                                    </div>
-
-                                    <div className="aurora-status-row">
-                                        <span className="aurora-status-dot status-processing" />
-
-                                        <span className="aurora-status-name">
-                                            Processing
-                                        </span>
-
-                                        <span className="aurora-status-count">
-                                            {processingCount}
-                                        </span>
-                                    </div>
-
-                                    <div className="aurora-status-row">
-                                        <span className="aurora-status-dot status-shipped" />
-
-                                        <span className="aurora-status-name">
-                                            Shipped
-                                        </span>
-
-                                        <span className="aurora-status-count">
-                                            {shippedCount}
-                                        </span>
-                                    </div>
-
-                                    <div className="aurora-status-row">
-                                        <span className="aurora-status-dot status-delivered" />
-
-                                        <span className="aurora-status-name">
-                                            Delivered
-                                        </span>
-
-                                        <span className="aurora-status-count">
-                                            {deliveredCount}
-                                        </span>
-                                    </div>
-
-                                </div>
-                            </section>
-                        </div>
                     </div>
 
-
-                    {/* =====================================================
-                        TOP PRODUCTS
-                    ====================================================== */}
-
-                    <section className="aurora-section-card mb-4">
-
-                        <div className="aurora-section-header">
-                            <div>
-                                <h2 className="aurora-section-title">
-                                    Top Products
-                                </h2>
-
-                                <p className="aurora-section-description">
-                                    Best-selling products across your store
-                                </p>
-                            </div>
-
-                            <Link
-                                href="/admin/products"
-                                className="btn btn-sm btn-outline-secondary rounded-pill px-3"
-                            >
-                                Manage Products
-                            </Link>
-                        </div>
-
-                        <div>
-                            {topProducts.length > 0 ? (
-                                topProducts.map((product, index) => (
-                                    <div
-                                        key={product.id}
-                                        className="aurora-top-product"
-                                    >
-                                        <div className="aurora-rank">
-                                            {index + 1}
-                                        </div>
-
-                                        <div className="aurora-top-name">
-                                            {product.name}
-                                        </div>
-
-                                        <div className="aurora-top-sales">
-                                            <strong>
-                                                {Number(
-                                                    product.total_sold
-                                                ).toLocaleString("en-IN")}
-                                            </strong>
-
-                                            sold
-                                        </div>
-                                    </div>
-                                ))
-                            ) : (
-                                <div className="text-center text-secondary py-5">
-                                    No sales data available yet.
-                                </div>
-                            )}
-                        </div>
-                    </section>
-
-
-                    {/* =====================================================
+                    {/* =========================
                         QUICK ACTIONS
-                    ====================================================== */}
+                    ========================= */}
 
-                    <section>
-                        <div className="d-flex align-items-center justify-content-between mb-3">
+                    <section className="aurora-card">
+
+                        <div className="aurora-card-head">
                             <div>
-                                <h2
-                                    className="aurora-section-title mb-1"
-                                    style={{ fontSize: "18px" }}
-                                >
+                                <div className="aurora-card-title">
                                     Quick Actions
-                                </h2>
+                                </div>
 
-                                <p className="aurora-section-description mb-0">
-                                    Frequently used admin shortcuts
-                                </p>
+                                <div className="aurora-card-desc">
+                                    Frequently used store management actions
+                                </div>
                             </div>
                         </div>
 
                         <div className="row g-3">
 
-                            {/* Add Product */}
-                            <div className="col-12 col-sm-6 col-lg-3">
-                                <Link
-                                    href="/admin/products/new"
-                                    className="aurora-action-box"
-                                >
-                                    <div className="aurora-action-icon">
-                                        +
-                                    </div>
-
-                                    <div>
-                                        <div className="aurora-action-title">
-                                            Add Product
-                                        </div>
-
-                                        <div className="aurora-action-subtitle">
-                                            Create a new product
-                                        </div>
-                                    </div>
-                                </Link>
-                            </div>
-
-
-                            {/* Products */}
-                            <div className="col-12 col-sm-6 col-lg-3">
+                            <div className="col-md-4">
                                 <Link
                                     href="/admin/products"
-                                    className="aurora-action-box"
+                                    className="aurora-action aurora-action-products"
                                 >
                                     <div className="aurora-action-icon">
                                         📦
                                     </div>
 
-                                    <div>
+                                    <div className="aurora-action-content">
                                         <div className="aurora-action-title">
                                             Products
                                         </div>
 
-                                        <div className="aurora-action-subtitle">
-                                            Manage your products
+                                        <div className="aurora-action-desc">
+                                            Manage your complete product catalog
                                         </div>
+                                    </div>
+
+                                    <div className="aurora-action-arrow">
+                                        →
                                     </div>
                                 </Link>
                             </div>
 
-
-                            {/* Orders */}
-                            <div className="col-12 col-sm-6 col-lg-3">
+                            <div className="col-md-4">
                                 <Link
-                                    href="/admin/orders"
-                                    className="aurora-action-box"
+                                    href="/admin/products/new"
+                                    className="aurora-action aurora-action-add"
                                 >
                                     <div className="aurora-action-icon">
-                                        🛒
+                                        ＋
                                     </div>
 
-                                    <div>
+                                    <div className="aurora-action-content">
                                         <div className="aurora-action-title">
-                                            View Orders
+                                            Add Product
                                         </div>
 
-                                        <div className="aurora-action-subtitle">
-                                            Manage customer orders
+                                        <div className="aurora-action-desc">
+                                            Create and publish a new product
                                         </div>
+                                    </div>
+
+                                    <div className="aurora-action-arrow">
+                                        →
                                     </div>
                                 </Link>
                             </div>
 
-
-                            {/* Storefront */}
-                            <div className="col-12 col-sm-6 col-lg-3">
+                            <div className="col-md-4">
                                 <Link
                                     href="/"
-                                    className="aurora-action-box"
+                                    className="aurora-action aurora-action-store"
                                 >
                                     <div className="aurora-action-icon">
-                                        ↗
+                                        🏪
                                     </div>
 
-                                    <div>
+                                    <div className="aurora-action-content">
                                         <div className="aurora-action-title">
-                                            View Storefront
+                                            Store Front
                                         </div>
 
-                                        <div className="aurora-action-subtitle">
-                                            Open your online store
+                                        <div className="aurora-action-desc">
+                                            Open and preview your customer store
                                         </div>
+                                    </div>
+
+                                    <div className="aurora-action-arrow">
+                                        →
                                     </div>
                                 </Link>
                             </div>
@@ -1318,4 +1895,3 @@ db.query(`
         </>
     );
 }
-

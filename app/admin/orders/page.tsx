@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { money } from "@/lib/utils";
+import OrderStatusSelect from "@/components/admin/OrderStatusSelect";
 
 export const dynamic = "force-dynamic";
 
@@ -18,17 +19,7 @@ type OrderRow = {
 };
 
 /*
- * Converts all status variations into one standard format.
- *
- * PENDING
- * Pending
- * pending
- *  pending
- * PENDING
- *
- * all become:
- *
- * PENDING
+ * Normalize status values.
  */
 const normalizeStatus = (status?: string | null) => {
     return String(status ?? "")
@@ -37,27 +28,80 @@ const normalizeStatus = (status?: string | null) => {
 };
 
 /*
+ * Convert database status into dashboard display status.
+ *
+ * Database:
+ * PLACED
+ *
+ * Dashboard:
+ * PENDING
+ */
+const dashboardStatus = (status?: string | null) => {
+    const normalized = normalizeStatus(status);
+
+    if (normalized === "PLACED") {
+        return "PENDING";
+    }
+
+    return normalized;
+};
+
+/*
+ * Human-readable status labels.
+ */
+const statusLabel = (status?: string | null) => {
+    switch (dashboardStatus(status)) {
+        case "PENDING":
+            return "Pending";
+
+        case "CONFIRMED":
+            return "Confirmed";
+
+        case "PACKED":
+            return "Packed";
+
+        case "SHIPPED":
+            return "Shipped";
+
+        case "OUT_FOR_DELIVERY":
+            return "Out for Delivery";
+
+        case "DELIVERED":
+            return "Delivered";
+
+        case "CANCELLED":
+            return "Cancelled";
+
+        default:
+            return "Unknown";
+    }
+};
+
+/*
  * Status badge styling.
  */
 const statusClass = (status?: string | null) => {
-    switch (normalizeStatus(status)) {
+    switch (dashboardStatus(status)) {
         case "PENDING":
             return "bg-warning-subtle text-warning-emphasis";
 
-        case "PROCESSING":
+        case "CONFIRMED":
             return "bg-info-subtle text-info-emphasis";
+
+        case "PACKED":
+            return "bg-primary-subtle text-primary-emphasis";
 
         case "SHIPPED":
             return "bg-primary-subtle text-primary-emphasis";
+
+        case "OUT_FOR_DELIVERY":
+            return "bg-info-subtle text-info-emphasis";
 
         case "DELIVERED":
             return "bg-success-subtle text-success-emphasis";
 
         case "CANCELLED":
             return "bg-danger-subtle text-danger-emphasis";
-
-        case "PAID":
-            return "bg-success-subtle text-success-emphasis";
 
         default:
             return "bg-secondary-subtle text-secondary-emphasis";
@@ -68,34 +112,21 @@ export default async function AdminOrdersPage() {
     const user = await getSession();
 
     /*
-     * Check login.
+     * Authentication
      */
     if (!user) {
         redirect("/account");
     }
 
     /*
-     * Only ADMIN can access this page.
+     * Only administrators can access this page.
      */
     if (user.role !== "ADMIN") {
         redirect("/");
     }
 
     /*
-     * Get ALL orders.
-     *
-     * IMPORTANT:
-     * There is NO user-role filter here.
-     *
-     * Therefore:
-     * - Admin orders
-     * - Customer orders
-     * - Orders from every user
-     *
-     * are included.
-     *
-     * LEFT JOIN is used so the order still appears
-     * even if its user record does not exist.
+     * Get all customer orders.
      */
     const [ordersResult] = await db.query(`
         SELECT
@@ -112,78 +143,104 @@ export default async function AdminOrdersPage() {
         ORDER BY o.created_at DESC
     `);
 
-    /*
-     * ordersResult contains the actual rows.
-     */
     const orders = ordersResult as OrderRow[];
 
-/*
- * Normalize the status coming from the database.
- *
- * Examples:
- *
- * PENDING  -> PENDING
- * Pending  -> PENDING
- * pending  -> PENDING
- * PLACED   -> PENDING
- * Placed   -> PENDING
- * placed   -> PENDING
- */
-const normalizedOrders = orders.map((order) => {
-    const databaseStatus = String(order.status ?? "")
-        .trim()
-        .toUpperCase();
-
-    let dashboardStatus = databaseStatus;
+    /*
+     * Normalize database statuses for dashboard display.
+     *
+     * PLACED -> PENDING
+     *
+     * Important:
+     * This is only for displaying the dashboard.
+     * The database value remains PLACED.
+     */
+    const normalizedOrders = orders.map((order) => ({
+        ...order,
+        status: dashboardStatus(order.status),
+    }));
 
     /*
-     * Your database currently uses PLACED
-     * for newly created orders.
-     *
-     * We treat PLACED as PENDING.
+     * =========================================================
+     * ORDER COUNTS
+     * =========================================================
      */
-    if (databaseStatus === "PLACED") {
-        dashboardStatus = "PENDING";
-    }
 
-    return {
-        ...order,
-        status: dashboardStatus,
-    };
-});
+    /*
+     * Total
+     */
+    const totalOrders = normalizedOrders.length;
 
-/*
- * TOTAL ORDERS
- *
- * All orders from the orders table.
- */
-const totalOrders = normalizedOrders.length;
+    /*
+     * Pending
+     *
+     * Database PLACED is displayed as Pending.
+     */
+    const pendingOrders = normalizedOrders.filter(
+        (order) => order.status === "PENDING"
+    ).length;
 
-/*
- * PENDING ORDERS
- *
- * Both PLACED and PENDING are treated as PENDING.
- *
- * Since normalizedOrders already converts PLACED
- * into PENDING, we only need to check PENDING here.
- */
-const pendingOrders = normalizedOrders.filter(
-    (order) => order.status === "PENDING"
-).length;
+    /*
+     * Confirmed
+     */
+    const confirmedOrders = normalizedOrders.filter(
+        (order) => order.status === "CONFIRMED"
+    ).length;
 
-/*
- * PROCESSING ORDERS
- */
-const processingOrders = normalizedOrders.filter(
-    (order) => order.status === "PROCESSING"
-).length;
+    /*
+     * Packed
+     */
+    const packedOrders = normalizedOrders.filter(
+        (order) => order.status === "PACKED"
+    ).length;
 
-/*
- * DELIVERED ORDERS
- */
-const deliveredOrders = normalizedOrders.filter(
-    (order) => order.status === "DELIVERED"
-).length;
+    /*
+     * Processing
+     *
+     * There is NO PROCESSING value in your database enum.
+     *
+     * Processing is therefore represented by the active
+     * fulfillment stages:
+     *
+     * CONFIRMED
+     * PACKED
+     * SHIPPED
+     * OUT_FOR_DELIVERY
+     */
+    const processingOrders = normalizedOrders.filter(
+        (order) =>
+            order.status === "CONFIRMED" ||
+            order.status === "PACKED" ||
+            order.status === "SHIPPED" ||
+            order.status === "OUT_FOR_DELIVERY"
+    ).length;
+
+    /*
+     * Shipped
+     */
+    const shippedOrders = normalizedOrders.filter(
+        (order) => order.status === "SHIPPED"
+    ).length;
+
+    /*
+     * Out for Delivery
+     */
+    const outForDeliveryOrders = normalizedOrders.filter(
+        (order) => order.status === "OUT_FOR_DELIVERY"
+    ).length;
+
+    /*
+     * Delivered
+     */
+    const deliveredOrders = normalizedOrders.filter(
+        (order) => order.status === "DELIVERED"
+    ).length;
+
+    /*
+     * Cancelled
+     */
+    const cancelledOrders = normalizedOrders.filter(
+        (order) => order.status === "CANCELLED"
+    ).length;
 
     return (
         <main
@@ -195,9 +252,9 @@ const deliveredOrders = normalizedOrders.filter(
         >
             <div className="container-fluid px-3 px-lg-5">
 
-                {/* =========================
+                {/* =====================================================
                     HEADER
-                ========================== */}
+                ====================================================== */}
 
                 <div className="d-flex flex-column flex-lg-row justify-content-between align-items-lg-end gap-3 mb-4">
 
@@ -232,7 +289,8 @@ const deliveredOrders = normalizedOrders.filter(
                         </h1>
 
                         <p className="text-secondary mb-0">
-                            Monitor all orders and track their current status.
+                            Monitor all customer orders and track their current
+                            fulfillment status.
                         </p>
 
                     </div>
@@ -246,14 +304,15 @@ const deliveredOrders = normalizedOrders.filter(
 
                 </div>
 
-
-                {/* =========================
+                {/* =====================================================
                     STATISTICS CARDS
-                ========================== */}
+                ====================================================== */}
 
                 <div className="row g-4 mb-4">
 
-                    {/* TOTAL ORDERS */}
+                    {/* =================================================
+                        TOTAL ORDERS
+                    ================================================== */}
 
                     <div className="col-12 col-sm-6 col-xl-3">
 
@@ -281,7 +340,9 @@ const deliveredOrders = normalizedOrders.filter(
                                             </div>
 
                                             <div className="display-6 fw-bold mt-2">
-                                                {totalOrders.toLocaleString("en-IN")}
+                                                {totalOrders.toLocaleString(
+                                                    "en-IN"
+                                                )}
                                             </div>
 
                                         </div>
@@ -302,7 +363,7 @@ const deliveredOrders = normalizedOrders.filter(
                                     </div>
 
                                     <div className="small mt-3 opacity-75">
-                                        All users orders →
+                                        All orders →
                                     </div>
 
                                 </div>
@@ -313,13 +374,14 @@ const deliveredOrders = normalizedOrders.filter(
 
                     </div>
 
-
-                    {/* PENDING */}
+                    {/* =================================================
+                        PENDING
+                    ================================================== */}
 
                     <div className="col-12 col-sm-6 col-xl-3">
 
                         <Link
-                            href="/admin/orders/pending"
+                            href="/admin/orders/status/pending"
                             className="text-decoration-none"
                         >
 
@@ -342,7 +404,9 @@ const deliveredOrders = normalizedOrders.filter(
                                             </div>
 
                                             <div className="display-6 fw-bold text-warning mt-2">
-                                                {pendingOrders.toLocaleString("en-IN")}
+                                                {pendingOrders.toLocaleString(
+                                                    "en-IN"
+                                                )}
                                             </div>
 
                                         </div>
@@ -372,13 +436,14 @@ const deliveredOrders = normalizedOrders.filter(
 
                     </div>
 
-
-                    {/* PROCESSING */}
+                    {/* =================================================
+                        CONFIRMED
+                    ================================================== */}
 
                     <div className="col-12 col-sm-6 col-xl-3">
 
                         <Link
-                            href="/admin/orders/processing"
+                            href="/admin/orders/status/confirmed"
                             className="text-decoration-none"
                         >
 
@@ -397,11 +462,137 @@ const deliveredOrders = normalizedOrders.filter(
                                         <div>
 
                                             <div className="small text-uppercase fw-semibold text-info-emphasis">
+                                                Confirmed
+                                            </div>
+
+                                            <div className="display-6 fw-bold text-info mt-2">
+                                                {confirmedOrders.toLocaleString(
+                                                    "en-IN"
+                                                )}
+                                            </div>
+
+                                        </div>
+
+                                        <div
+                                            className="rounded-circle bg-info text-white d-flex align-items-center justify-content-center"
+                                            style={{
+                                                width: 50,
+                                                height: 50,
+                                                fontSize: 22,
+                                            }}
+                                        >
+                                            ✓
+                                        </div>
+
+                                    </div>
+
+                                    <div className="small text-secondary mt-3">
+                                        View confirmed orders →
+                                    </div>
+
+                                </div>
+
+                            </div>
+
+                        </Link>
+
+                    </div>
+
+                    {/* =================================================
+                        PACKED
+                    ================================================== */}
+
+                    <div className="col-12 col-sm-6 col-xl-3">
+
+                        <Link
+                            href="/admin/orders/status/packed"
+                            className="text-decoration-none"
+                        >
+
+                            <div
+                                className="card border-0 rounded-4 h-100 shadow-sm"
+                                style={{
+                                    background:
+                                        "linear-gradient(135deg, #eef2ff, #ddd6fe)",
+                                }}
+                            >
+
+                                <div className="card-body p-4">
+
+                                    <div className="d-flex justify-content-between align-items-start">
+
+                                        <div>
+
+                                            <div className="small text-uppercase fw-semibold text-primary-emphasis">
+                                                Packed
+                                            </div>
+
+                                            <div className="display-6 fw-bold text-primary mt-2">
+                                                {packedOrders.toLocaleString(
+                                                    "en-IN"
+                                                )}
+                                            </div>
+
+                                        </div>
+
+                                        <div
+                                            className="rounded-circle bg-primary text-white d-flex align-items-center justify-content-center"
+                                            style={{
+                                                width: 50,
+                                                height: 50,
+                                                fontSize: 22,
+                                            }}
+                                        >
+                                            📦
+                                        </div>
+
+                                    </div>
+
+                                    <div className="small text-secondary mt-3">
+                                        View packed orders →
+                                    </div>
+
+                                </div>
+
+                            </div>
+
+                        </Link>
+
+                    </div>
+
+                    {/* =================================================
+                        PROCESSING
+                    ================================================== */}
+
+                    <div className="col-12 col-sm-6 col-xl-3">
+
+                        <Link
+                            href="/admin/orders/status/processing"
+                            className="text-decoration-none"
+                        >
+
+                            <div
+                                className="card border-0 rounded-4 h-100 shadow-sm"
+                                style={{
+                                    background:
+                                        "linear-gradient(135deg, #e0f2fe, #dbeafe)",
+                                }}
+                            >
+
+                                <div className="card-body p-4">
+
+                                    <div className="d-flex justify-content-between align-items-start">
+
+                                        <div>
+
+                                            <div className="small text-uppercase fw-semibold text-info-emphasis">
                                                 Processing
                                             </div>
 
                                             <div className="display-6 fw-bold text-info mt-2">
-                                                {processingOrders.toLocaleString("en-IN")}
+                                                {processingOrders.toLocaleString(
+                                                    "en-IN"
+                                                )}
                                             </div>
 
                                         </div>
@@ -431,13 +622,138 @@ const deliveredOrders = normalizedOrders.filter(
 
                     </div>
 
-
-                    {/* DELIVERED */}
+                    {/* =================================================
+                        SHIPPED
+                    ================================================== */}
 
                     <div className="col-12 col-sm-6 col-xl-3">
 
                         <Link
-                            href="/admin/orders/delivered"
+                            href="/admin/orders/status/shipped"
+                            className="text-decoration-none"
+                        >
+
+                            <div
+                                className="card border-0 rounded-4 h-100 shadow-sm"
+                                style={{
+                                    background:
+                                        "linear-gradient(135deg, #dbeafe, #e0e7ff)",
+                                }}
+                            >
+
+                                <div className="card-body p-4">
+
+                                    <div className="d-flex justify-content-between align-items-start">
+
+                                        <div>
+
+                                            <div className="small text-uppercase fw-semibold text-primary-emphasis">
+                                                Shipped
+                                            </div>
+
+                                            <div className="display-6 fw-bold text-primary mt-2">
+                                                {shippedOrders.toLocaleString(
+                                                    "en-IN"
+                                                )}
+                                            </div>
+
+                                        </div>
+
+                                        <div
+                                            className="rounded-circle bg-primary text-white d-flex align-items-center justify-content-center"
+                                            style={{
+                                                width: 50,
+                                                height: 50,
+                                                fontSize: 22,
+                                            }}
+                                        >
+                                            🚚
+                                        </div>
+
+                                    </div>
+
+                                    <div className="small text-secondary mt-3">
+                                        View shipped orders →
+                                    </div>
+
+                                </div>
+
+                            </div>
+
+                        </Link>
+
+                    </div>
+
+                    {/* =================================================
+                        OUT FOR DELIVERY
+                    ================================================== */}
+
+                    <div className="col-12 col-sm-6 col-xl-3">
+
+                        <Link
+                            href="/admin/orders/status/out-for-delivery"
+                            className="text-decoration-none"
+                        >
+
+                            <div
+                                className="card border-0 rounded-4 h-100 shadow-sm"
+                                style={{
+                                    background:
+                                        "linear-gradient(135deg, #fce7f3, #f3e8ff)",
+                                }}
+                            >
+
+                                <div className="card-body p-4">
+
+                                    <div className="d-flex justify-content-between align-items-start">
+
+                                        <div>
+
+                                            <div className="small text-uppercase fw-semibold text-danger-emphasis">
+                                                Out for Delivery
+                                            </div>
+
+                                            <div className="display-6 fw-bold text-danger mt-2">
+                                                {outForDeliveryOrders.toLocaleString(
+                                                    "en-IN"
+                                                )}
+                                            </div>
+
+                                        </div>
+
+                                        <div
+                                            className="rounded-circle bg-danger text-white d-flex align-items-center justify-content-center"
+                                            style={{
+                                                width: 50,
+                                                height: 50,
+                                                fontSize: 22,
+                                            }}
+                                        >
+                                            🛵
+                                        </div>
+
+                                    </div>
+
+                                    <div className="small text-secondary mt-3">
+                                        View delivery orders →
+                                    </div>
+
+                                </div>
+
+                            </div>
+
+                        </Link>
+
+                    </div>
+
+                    {/* =================================================
+                        DELIVERED
+                    ================================================== */}
+
+                    <div className="col-12 col-sm-6 col-xl-3">
+
+                        <Link
+                            href="/admin/orders/status/delivered"
                             className="text-decoration-none"
                         >
 
@@ -460,7 +776,9 @@ const deliveredOrders = normalizedOrders.filter(
                                             </div>
 
                                             <div className="display-6 fw-bold text-success mt-2">
-                                                {deliveredOrders.toLocaleString("en-IN")}
+                                                {deliveredOrders.toLocaleString(
+                                                    "en-IN"
+                                                )}
                                             </div>
 
                                         </div>
@@ -490,18 +808,79 @@ const deliveredOrders = normalizedOrders.filter(
 
                     </div>
 
+                    {/* =================================================
+                        CANCELLED
+                    ================================================== */}
+
+                    <div className="col-12 col-sm-6 col-xl-3">
+
+                        <Link
+                            href="/admin/orders/status/cancelled"
+                            className="text-decoration-none"
+                        >
+
+                            <div
+                                className="card border-0 rounded-4 h-100 shadow-sm"
+                                style={{
+                                    background:
+                                        "linear-gradient(135deg, #fef2f2, #fee2e2)",
+                                }}
+                            >
+
+                                <div className="card-body p-4">
+
+                                    <div className="d-flex justify-content-between align-items-start">
+
+                                        <div>
+
+                                            <div className="small text-uppercase fw-semibold text-danger-emphasis">
+                                                Cancelled
+                                            </div>
+
+                                            <div className="display-6 fw-bold text-danger mt-2">
+                                                {cancelledOrders.toLocaleString(
+                                                    "en-IN"
+                                                )}
+                                            </div>
+
+                                        </div>
+
+                                        <div
+                                            className="rounded-circle bg-danger text-white d-flex align-items-center justify-content-center"
+                                            style={{
+                                                width: 50,
+                                                height: 50,
+                                                fontSize: 22,
+                                            }}
+                                        >
+                                            ✕
+                                        </div>
+
+                                    </div>
+
+                                    <div className="small text-secondary mt-3">
+                                        View cancelled orders →
+                                    </div>
+
+                                </div>
+
+                            </div>
+
+                        </Link>
+
+                    </div>
+
                 </div>
 
-
-                {/* =========================
+                {/* =====================================================
                     ALL ORDERS TABLE
-                ========================== */}
+                ====================================================== */}
 
                 <div className="card border-0 shadow-sm rounded-4 overflow-hidden">
 
                     <div className="card-body p-3 p-lg-4">
 
-                        <div className="d-flex justify-content-between align-items-center mb-4">
+                        <div className="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 mb-4">
 
                             <div>
 
@@ -510,7 +889,7 @@ const deliveredOrders = normalizedOrders.filter(
                                 </h4>
 
                                 <p className="text-secondary small mb-0">
-                                    Showing orders from all users.
+                                    Showing orders from all customers.
                                 </p>
 
                             </div>
@@ -522,11 +901,10 @@ const deliveredOrders = normalizedOrders.filter(
                                     color: "#4f46e5",
                                 }}
                             >
-                                {totalOrders} Orders
+                                {totalOrders.toLocaleString("en-IN")} Orders
                             </div>
 
                         </div>
-
 
                         <div className="table-responsive">
 
@@ -556,10 +934,13 @@ const deliveredOrders = normalizedOrders.filter(
                                             Status
                                         </th>
 
+                                        <th className="border-0 text-end">
+                                            Update Status
+                                        </th>
+
                                     </tr>
 
                                 </thead>
-
 
                                 <tbody>
 
@@ -567,90 +948,146 @@ const deliveredOrders = normalizedOrders.filter(
 
                                         normalizedOrders.map((order) => (
 
-                                            <tr key={order.id}>
+                                            <tr
+                                                key={order.id}
+                                                style={{
+                                                    cursor: "pointer",
+                                                }}
+                                            >
 
                                                 {/* ORDER */}
 
                                                 <td>
 
-                                                    <div className="fw-semibold">
-                                                        {order.order_number || `Order #${order.id}`}
-                                                    </div>
+                                                    <Link
+                                                        href={`/admin/orders/${order.id}`}
+                                                        className="text-decoration-none text-dark d-block"
+                                                    >
 
-                                                    <div className="small text-secondary">
-                                                        ID #{order.id}
-                                                    </div>
+                                                        <div className="fw-semibold">
+                                                            {order.order_number ||
+                                                                `Order #${order.id}`}
+                                                        </div>
+
+                                                        <div className="small text-secondary">
+                                                            ID #{order.id}
+                                                        </div>
+
+                                                    </Link>
 
                                                 </td>
-
 
                                                 {/* CUSTOMER */}
 
                                                 <td>
 
-                                                    <div className="fw-semibold">
+                                                    <Link
+                                                        href={`/admin/orders/${order.id}`}
+                                                        className="text-decoration-none text-dark d-block"
+                                                    >
 
-                                                        {order.customer_name ||
-                                                            "Unknown Customer"}
+                                                        <div className="fw-semibold">
+                                                            {order.customer_name ||
+                                                                "Unknown Customer"}
+                                                        </div>
 
-                                                    </div>
+                                                        <div className="small text-secondary">
+                                                            {order.customer_email ||
+                                                                "No email"}
+                                                        </div>
 
-                                                    <div className="small text-secondary">
-
-                                                        {order.customer_email ||
-                                                            "No email"}
-
-                                                    </div>
+                                                    </Link>
 
                                                 </td>
-
 
                                                 {/* DATE */}
 
                                                 <td>
 
-                                                    <span className="small">
+                                                    <Link
+                                                        href={`/admin/orders/${order.id}`}
+                                                        className="text-decoration-none text-dark d-block"
+                                                    >
 
-                                                        {order.created_at
-                                                            ? new Date(
-                                                                  order.created_at
-                                                              ).toLocaleDateString(
-                                                                  "en-IN"
-                                                              )
-                                                            : "No date"}
+                                                        <span className="small">
 
-                                                    </span>
+                                                            {order.created_at
+                                                                ? new Date(
+                                                                      order.created_at
+                                                                  ).toLocaleDateString(
+                                                                      "en-IN"
+                                                                  )
+                                                                : "No date"}
+
+                                                        </span>
+
+                                                    </Link>
 
                                                 </td>
-
 
                                                 {/* TOTAL */}
 
-                                                <td className="fw-bold">
+                                                <td>
 
-                                                    {Number.isFinite(
-                                                        Number(order.total)
-                                                    )
-                                                        ? money(
-                                                              Number(order.total)
-                                                          )
-                                                        : "₹0"}
+                                                    <Link
+                                                        href={`/admin/orders/${order.id}`}
+                                                        className="text-decoration-none text-dark d-block"
+                                                    >
+
+                                                        <span className="fw-bold">
+
+                                                            {Number.isFinite(
+                                                                Number(order.total)
+                                                            )
+                                                                ? money(
+                                                                      Number(
+                                                                          order.total
+                                                                      )
+                                                                  )
+                                                                : "₹0"}
+
+                                                        </span>
+
+                                                    </Link>
 
                                                 </td>
-
 
                                                 {/* STATUS */}
 
                                                 <td>
 
-                                                    <span
-                                                        className={`badge rounded-pill px-3 py-2 ${statusClass(
-                                                            order.status
-                                                        )}`}
+                                                    <Link
+                                                        href={`/admin/orders/${order.id}`}
+                                                        className="text-decoration-none d-block"
                                                     >
-                                                        {order.status ||
-                                                            "UNKNOWN"}
-                                                    </span>
+
+                                                        <span
+                                                            className={`badge rounded-pill px-3 py-2 ${statusClass(
+                                                                order.status
+                                                            )}`}
+                                                        >
+                                                            {statusLabel(
+                                                                order.status
+                                                            )}
+                                                        </span>
+
+                                                    </Link>
+
+                                                </td>
+
+                                                {/* UPDATE STATUS */}
+
+                                                <td className="text-end">
+
+                                                    <OrderStatusSelect
+                                                        orderId={order.id}
+                                                        status={
+                                                            order.status ===
+                                                            "PENDING"
+                                                                ? "PLACED"
+                                                                : order.status
+                                                        }
+                                                    />
 
                                                 </td>
 
@@ -663,7 +1100,7 @@ const deliveredOrders = normalizedOrders.filter(
                                         <tr>
 
                                             <td
-                                                colSpan={5}
+                                                colSpan={6}
                                                 className="text-center py-5 text-secondary"
                                             >
                                                 No orders found.
@@ -687,3 +1124,4 @@ const deliveredOrders = normalizedOrders.filter(
         </main>
     );
 }
+
