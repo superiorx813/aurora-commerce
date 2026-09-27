@@ -1182,7 +1182,8 @@ export default async function AdminPage() {
                         min-height: 82px;
                     }
                 }
-            `}</style>
+            `}
+            </style>
 
             <script
                 dangerouslySetInnerHTML={{
