@@ -30,6 +30,7 @@ import {
   Building2,
   Map,
   Hash,
+  Send,
   Pencil,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
@@ -70,6 +71,7 @@ export default function Header() {
   const [loadingUser, setLoadingUser] = useState(true);
 
   const [profileOpen, setProfileOpen] = useState(false);
+  const [customerCareOpen, setCustomerCareOpen] = useState(false);
   const [profileLoading, setProfileLoading] = useState(false);
   const [profileSaving, setProfileSaving] = useState(false);
   const [profileDeletingImage, setProfileDeletingImage] = useState(false);
@@ -689,13 +691,6 @@ export default function Header() {
               onClick={closeMenu}
             />
 
-            <SideLink
-  href="/customer-care"
-  icon={<MessageCircle size={18} />}
-  label="Customer Care"
-  onClick={closeMenu}
-/>
-
             <button
               type="button"
               onClick={openProfile}
@@ -736,6 +731,47 @@ export default function Header() {
               <span style={{ flex: 1 }}>Profile</span>
               <span style={{ fontSize: "11px", color: "#999" }}>View</span>
             </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                closeMenu();
+                setCustomerCareOpen(true);
+              }}
+              style={{
+                width: "100%",
+                border: "none",
+                display: "flex",
+                alignItems: "center",
+                gap: "12px",
+                padding: "12px 13px",
+                marginBottom: "4px",
+                borderRadius: "11px",
+                color: "#333",
+                background: "transparent",
+                fontWeight: 500,
+                cursor: "pointer",
+                textAlign: "left",
+              }}
+            >
+              <span
+                style={{
+                  width: "34px",
+                  height: "34px",
+                  borderRadius: "9px",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  background: "#f5f5f5",
+                  color: "#666",
+                  flexShrink: 0,
+                }}
+              >
+                <MessageCircle size={18} />
+              </span>
+              <span style={{ flex: 1 }}>Customer Care</span>
+              <span style={{ fontSize: "11px", color: "#999" }}>Help</span>
+            </button>
           </MenuSection>
 
           {isAdmin && (
@@ -775,6 +811,12 @@ export default function Header() {
                 href="/admin/products/new"
                 icon={<PlusCircle size={18} />}
                 label="Add Product"
+                onClick={closeMenu}
+              />
+              <SideLink
+                href="/admin/customer-care"
+                icon={<MessageCircle size={18} />}
+                label="Customer Care"
                 onClick={closeMenu}
               />
             </MenuSection>
@@ -821,6 +863,10 @@ export default function Header() {
           )}
         </div>
       </aside>
+
+      {customerCareOpen && (
+        <CustomerCareModal onClose={() => setCustomerCareOpen(false)} />
+      )}
 
       {profileOpen && (
         <>
@@ -1534,6 +1580,514 @@ export default function Header() {
     </>
   );
 }
+
+
+function CustomerCareModal({ onClose }: { onClose: () => void }) {
+  const [form, setForm] = useState({
+    name: "",
+    email: "",
+    phone: "",
+    subject: "",
+    message: "",
+  });
+  const [submitting, setSubmitting] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
+  const [error, setError] = useState("");
+
+  const updateField = (
+    event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
+  ) => {
+    const { name, value } = event.target;
+    setForm((current) => ({ ...current, [name]: value }));
+    if (error) setError("");
+  };
+
+  const submitMessage = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (submitting) return;
+
+    setSubmitting(true);
+    setError("");
+
+    try {
+      const response = await fetch("/api/customer-care", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(form),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.message || "Unable to submit your message.");
+      }
+
+      setSubmitted(true);
+      setForm({
+        name: "",
+        email: "",
+        phone: "",
+        subject: "",
+        message: "",
+      });
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Unable to submit your message. Please try again."
+      );
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <>
+      <div
+        onClick={submitting ? undefined : onClose}
+        style={{
+          position: "fixed",
+          inset: 0,
+          background: "rgba(15, 23, 42, .62)",
+          backdropFilter: "blur(7px)",
+          WebkitBackdropFilter: "blur(7px)",
+          zIndex: 11000,
+        }}
+      />
+
+      <div
+        style={{
+          position: "fixed",
+          inset: 0,
+          zIndex: 11001,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          padding: "18px",
+          pointerEvents: "none",
+        }}
+      >
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="customer-care-title"
+          onClick={(event) => event.stopPropagation()}
+          style={{
+            width: "100%",
+            maxWidth: "1050px",
+            maxHeight: "92vh",
+            overflowY: "auto",
+            background: "#f8fafc",
+            borderRadius: "24px",
+            boxShadow: "0 35px 100px rgba(15, 23, 42, .32)",
+            pointerEvents: "auto",
+            overflow: "hidden",
+          }}
+        >
+          <div
+            style={{
+              position: "relative",
+              padding: "26px 30px",
+              color: "#fff",
+              background:
+                "linear-gradient(135deg, #173b67 0%, #2563a6 48%, #4d83c4 100%)",
+              overflow: "hidden",
+            }}
+          >
+            <div
+              style={{
+                position: "absolute",
+                width: "170px",
+                height: "170px",
+                borderRadius: "50%",
+                right: "-55px",
+                top: "-85px",
+                background: "rgba(255,255,255,.08)",
+              }}
+            />
+            <div
+              style={{
+                position: "absolute",
+                width: "100px",
+                height: "100px",
+                borderRadius: "50%",
+                right: "100px",
+                bottom: "-65px",
+                background: "rgba(255,255,255,.06)",
+              }}
+            />
+
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={submitting}
+              aria-label="Close Customer Care"
+              style={{
+                position: "absolute",
+                top: "16px",
+                right: "16px",
+                width: "38px",
+                height: "38px",
+                border: "1px solid rgba(255,255,255,.18)",
+                borderRadius: "12px",
+                background: "rgba(255,255,255,.12)",
+                color: "#fff",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                cursor: submitting ? "not-allowed" : "pointer",
+                zIndex: 2,
+              }}
+            >
+              <X size={18} />
+            </button>
+
+            <div style={{ position: "relative", zIndex: 1, paddingRight: "48px" }}>
+              <div
+                style={{
+                  fontSize: "10px",
+                  fontWeight: 800,
+                  letterSpacing: "2px",
+                  opacity: .75,
+                  marginBottom: "7px",
+                }}
+              >
+                AURORA SUPPORT
+              </div>
+              <h2
+                id="customer-care-title"
+                style={{
+                  margin: 0,
+                  fontSize: "25px",
+                  fontWeight: 800,
+                }}
+              >
+                Customer Care
+              </h2>
+              <p
+                style={{
+                  margin: "7px 0 0",
+                  fontSize: "12px",
+                  opacity: .84,
+                  lineHeight: 1.6,
+                  maxWidth: "650px",
+                }}
+              >
+                Have a question or need help with your order? Send us a
+                message and our support team will get back to you.
+              </p>
+            </div>
+          </div>
+
+          <div style={{ padding: "24px" }}>
+            {submitted ? (
+              <div
+                style={{
+                  textAlign: "center",
+                  padding: "55px 20px",
+                  background: "#f1f7ff",
+                  borderRadius: "18px",
+                  border: "1px solid #dcecff",
+                }}
+              >
+                <div
+                  style={{
+                    width: "68px",
+                    height: "68px",
+                    margin: "0 auto 16px",
+                    borderRadius: "50%",
+                    background: "#dcfce7",
+                    color: "#15803d",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontSize: "28px",
+                    fontWeight: 800,
+                  }}
+                >
+                  ✓
+                </div>
+                <h4 style={{ margin: "0 0 8px", fontWeight: 800, color: "#20242b" }}>
+                  Message Sent Successfully
+                </h4>
+                <p
+                  style={{
+                    maxWidth: "520px",
+                    margin: "0 auto 22px",
+                    color: "#6b7280",
+                    fontSize: "13px",
+                    lineHeight: 1.7,
+                  }}
+                >
+                  Your message has been received. Our support team will
+                  review it shortly.
+                </p>
+                <button
+                  type="button"
+                  onClick={onClose}
+                  style={modernPrimaryButtonStyle}
+                >
+                  Close
+                </button>
+              </div>
+            ) : (
+              <div className="row g-4">
+                <div className="col-lg-4">
+                  <div
+                    style={{
+                      height: "100%",
+                      padding: "22px",
+                      background: "#f1f7ff",
+                      borderRadius: "18px",
+                      border: "1px solid #dcecff",
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: "46px",
+                        height: "46px",
+                        borderRadius: "12px",
+                        background:
+                          "linear-gradient(135deg, #2563a6, #4d83c4)",
+                        color: "#fff",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        marginBottom: "14px",
+                      }}
+                    >
+                      <MessageCircle size={22} />
+                    </div>
+                    <h5 style={{ margin: "0 0 8px", fontWeight: 800, color: "#20242b" }}>
+                      How can we help?
+                    </h5>
+                    <p
+                      style={{
+                        margin: 0,
+                        color: "#6b7280",
+                        fontSize: "12px",
+                        lineHeight: 1.7,
+                      }}
+                    >
+                      Our Customer Care team can help with orders, products,
+                      payments, deliveries and other questions.
+                    </p>
+
+                    <div style={{ marginTop: "24px" }}>
+                      <SupportInfo icon={<Mail size={17} />} title="Email" value="support@aurora.com" />
+                      <SupportInfo icon={<Phone size={17} />} title="Phone" value="+91 98765 43210" />
+                      <SupportInfo icon={<MapPin size={17} />} title="Support Hours" value="Monday - Saturday, 9:00 AM - 6:00 PM" />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="col-lg-8">
+                  <div
+                    style={{
+                      padding: "22px",
+                      background: "#fff",
+                      borderRadius: "18px",
+                      border: "1px solid #e9edf3",
+                    }}
+                  >
+                    <h5 style={{ margin: "0 0 4px", fontWeight: 800, color: "#20242b" }}>
+                      Send us a message
+                    </h5>
+                    <p style={{ margin: "0 0 18px", color: "#8b95a7", fontSize: "11px" }}>
+                      Fill in the details below and we'll get back to you.
+                    </p>
+
+                    {error && (
+                      <div
+                        style={{
+                          padding: "11px 13px",
+                          marginBottom: "15px",
+                          borderRadius: "11px",
+                          background: "#fff1f2",
+                          border: "1px solid #fecdd3",
+                          color: "#be123c",
+                          fontSize: "12px",
+                          fontWeight: 600,
+                        }}
+                      >
+                        {error}
+                      </div>
+                    )}
+
+                    <form onSubmit={submitMessage}>
+                      <div className="row g-3">
+                        <CustomerCareField label="Full Name *">
+                          <input
+                            type="text"
+                            name="name"
+                            value={form.name}
+                            onChange={updateField}
+                            maxLength={120}
+                            required
+                            disabled={submitting}
+                            placeholder="Enter your name"
+                            style={customerCareInputStyle}
+                          />
+                        </CustomerCareField>
+
+                        <CustomerCareField label="Email *">
+                          <input
+                            type="email"
+                            name="email"
+                            value={form.email}
+                            onChange={updateField}
+                            maxLength={255}
+                            required
+                            disabled={submitting}
+                            placeholder="Enter your email"
+                            style={customerCareInputStyle}
+                          />
+                        </CustomerCareField>
+
+                        <CustomerCareField label="Phone">
+                          <input
+                            type="tel"
+                            name="phone"
+                            value={form.phone}
+                            onChange={updateField}
+                            maxLength={30}
+                            disabled={submitting}
+                            placeholder="Enter your phone number"
+                            style={customerCareInputStyle}
+                          />
+                        </CustomerCareField>
+
+                        <CustomerCareField label="Subject *">
+                          <input
+                            type="text"
+                            name="subject"
+                            value={form.subject}
+                            onChange={updateField}
+                            maxLength={200}
+                            required
+                            disabled={submitting}
+                            placeholder="What do you need help with?"
+                            style={customerCareInputStyle}
+                          />
+                        </CustomerCareField>
+
+                        <div className="col-12">
+                          <CustomerCareField label="Message *">
+                            <textarea
+                              name="message"
+                              value={form.message}
+                              onChange={updateField}
+                              maxLength={5000}
+                              rows={5}
+                              required
+                              disabled={submitting}
+                              placeholder="Describe your issue..."
+                              style={{
+                                ...customerCareInputStyle,
+                                resize: "vertical",
+                                minHeight: "110px",
+                              }}
+                            />
+                          </CustomerCareField>
+                        </div>
+
+                        <div className="col-12 d-flex justify-content-end gap-2 pt-1">
+                          <button
+                            type="button"
+                            onClick={onClose}
+                            disabled={submitting}
+                            style={modernSecondaryButtonStyle}
+                          >
+                            Close
+                          </button>
+                          <button
+                            type="submit"
+                            disabled={submitting}
+                            style={{
+                              ...modernPrimaryButtonStyle,
+                              opacity: submitting ? .7 : 1,
+                              cursor: submitting ? "not-allowed" : "pointer",
+                            }}
+                          >
+                            <Send size={15} />
+                            {submitting ? "Sending..." : "Send Message"}
+                          </button>
+                        </div>
+                      </div>
+                    </form>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </>
+  );
+}
+
+function SupportInfo({
+  icon,
+  title,
+  value,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  value: string;
+}) {
+  return (
+    <div style={{ display: "flex", gap: "11px", marginBottom: "17px" }}>
+      <span style={{ color: "#2563a6", marginTop: "2px" }}>{icon}</span>
+      <div>
+        <div style={{ fontSize: "10px", fontWeight: 800, color: "#20242b" }}>
+          {title}
+        </div>
+        <div style={{ fontSize: "11px", color: "#6b7280", marginTop: "3px", lineHeight: 1.5 }}>
+          {value}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function CustomerCareField({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="col-md-6">
+      <label
+        style={{
+          display: "block",
+          marginBottom: "7px",
+          fontSize: "10px",
+          fontWeight: 800,
+          color: "#7b8494",
+          textTransform: "uppercase",
+          letterSpacing: ".7px",
+        }}
+      >
+        {label}
+      </label>
+      {children}
+    </div>
+  );
+}
+
+const customerCareInputStyle: React.CSSProperties = {
+  width: "100%",
+  border: "1px solid #dfe4ea",
+  borderRadius: "11px",
+  padding: "10px 12px",
+  outline: "none",
+  fontSize: "12px",
+  color: "#1f2937",
+  background: "#fff",
+  boxSizing: "border-box",
+};
 
 function ProfileSection({
   icon,

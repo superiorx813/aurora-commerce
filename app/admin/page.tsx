@@ -1,3 +1,4 @@
+
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
@@ -46,6 +47,13 @@ type StatusRow = {
     count: number;
 };
 
+type CustomerCareRow = {
+    total: number;
+    new_count: number;
+    read_count: number;
+    resolved_count: number;
+};
+
 export default async function AdminPage() {
     const user = await getSession();
 
@@ -65,6 +73,7 @@ export default async function AdminPage() {
         [salesRows],
         [topProductRows],
         [orderStatusRows],
+        [customerCareRows],
     ] = await Promise.all([
         db.query(`
             SELECT
@@ -145,6 +154,15 @@ export default async function AdminPage() {
             FROM orders
             GROUP BY status
         `),
+
+        db.query(`
+            SELECT
+                COUNT(*) AS total,
+                SUM(status = 'NEW') AS new_count,
+                SUM(status = 'READ') AS read_count,
+                SUM(status = 'RESOLVED') AS resolved_count
+            FROM customer_messages
+        `),
     ]);
 
     const stats = (statsRows as StatRow[])[0] ?? {
@@ -165,6 +183,31 @@ export default async function AdminPage() {
     const topProducts = topProductRows as TopProductRow[];
     const orderStatuses = orderStatusRows as StatusRow[];
 
+    const customerCare = (
+        customerCareRows as CustomerCareRow[]
+    )[0] ?? {
+        total: 0,
+        new_count: 0,
+        read_count: 0,
+        resolved_count: 0,
+    };
+
+    const customerCareTotal = Number(
+        customerCare.total ?? 0
+    );
+
+    const customerCareNew = Number(
+        customerCare.new_count ?? 0
+    );
+
+    const customerCareRead = Number(
+        customerCare.read_count ?? 0
+    );
+
+    const customerCareResolved = Number(
+        customerCare.resolved_count ?? 0
+    );
+
     const salesMap = new Map(
         sales.map((item) => [
             String(item.sales_date).slice(0, 10),
@@ -172,51 +215,79 @@ export default async function AdminPage() {
         ])
     );
 
-    const chartData = Array.from({ length: 30 }, (_, index) => {
-        const date = new Date();
+    const chartData = Array.from(
+        { length: 30 },
+        (_, index) => {
+            const date = new Date();
 
-        date.setHours(12, 0, 0, 0);
-        date.setDate(date.getDate() - (29 - index));
+            date.setHours(12, 0, 0, 0);
+            date.setDate(
+                date.getDate() - (29 - index)
+            );
 
-        const key = [
-            date.getFullYear(),
-            String(date.getMonth() + 1).padStart(2, "0"),
-            String(date.getDate()).padStart(2, "0"),
-        ].join("-");
+            const key = [
+                date.getFullYear(),
+                String(
+                    date.getMonth() + 1
+                ).padStart(2, "0"),
+                String(
+                    date.getDate()
+                ).padStart(2, "0"),
+            ].join("-");
 
-        return {
-            date: key,
-            label: date.toLocaleDateString("en-IN", {
-                day: "2-digit",
-                month: "short",
-            }),
-            revenue: salesMap.get(key) ?? 0,
-        };
-    });
+            return {
+                date: key,
+                label: date.toLocaleDateString(
+                    "en-IN",
+                    {
+                        day: "2-digit",
+                        month: "short",
+                    }
+                ),
+                revenue:
+                    salesMap.get(key) ?? 0,
+            };
+        }
+    );
 
     const maxRevenue = Math.max(
-        ...chartData.map((item) => Number(item.revenue)),
+        ...chartData.map((item) =>
+            Number(item.revenue)
+        ),
         1
     );
 
-    const total30DayRevenue = chartData.reduce(
-        (sum, item) => sum + Number(item.revenue),
-        0
-    );
+    const total30DayRevenue =
+        chartData.reduce(
+            (sum, item) =>
+                sum + Number(item.revenue),
+            0
+        );
 
-    const getStatusCount = (status: string) =>
+    const getStatusCount = (
+        status: string
+    ) =>
         Number(
             orderStatuses.find(
                 (item) =>
-                    String(item.status).trim().toUpperCase() ===
+                    String(item.status)
+                        .trim()
+                        .toUpperCase() ===
                     status.toUpperCase()
             )?.count ?? 0
         );
 
-    const pendingCount = getStatusCount("PENDING");
-    const processingCount = getStatusCount("PROCESSING");
-    const shippedCount = getStatusCount("SHIPPED");
-    const deliveredCount = getStatusCount("DELIVERED");
+    const pendingCount =
+        getStatusCount("PENDING");
+
+    const processingCount =
+        getStatusCount("PROCESSING");
+
+    const shippedCount =
+        getStatusCount("SHIPPED");
+
+    const deliveredCount =
+        getStatusCount("DELIVERED");
 
     const statusTotal =
         pendingCount +
@@ -224,13 +295,20 @@ export default async function AdminPage() {
         shippedCount +
         deliveredCount;
 
-    const getPercentage = (count: number) =>
+    const getPercentage = (
+        count: number
+    ) =>
         statusTotal
-            ? Math.round((count / statusTotal) * 100)
+            ? Math.round(
+                  (count / statusTotal) *
+                      100
+              )
             : 0;
 
     const highestSales = Math.max(
-        Number(topProducts[0]?.total_sold ?? 1),
+        Number(
+            topProducts[0]?.total_sold ?? 1
+        ),
         1
     );
 
@@ -298,7 +376,12 @@ export default async function AdminPage() {
                     font-size: 24px;
                     font-weight: 800;
                     box-shadow:
-                        0 10px 25px rgba(124, 58, 237, 0.25);
+                        0 10px 25px rgba(
+                            124,
+                            58,
+                            237,
+                            0.25
+                        );
                 }
 
                 .aurora-brand-small {
@@ -337,7 +420,13 @@ export default async function AdminPage() {
                     border-radius: 14px;
                     background: #fff;
                     border: 1px solid #e8eaf0;
-                    box-shadow: 0 8px 20px rgba(20, 25, 40, 0.05);
+                    box-shadow:
+                        0 8px 20px rgba(
+                            20,
+                            25,
+                            40,
+                            0.05
+                        );
                 }
 
                 .aurora-admin-avatar {
@@ -375,7 +464,13 @@ export default async function AdminPage() {
                     background: #fff;
                     border: 1px solid #e8eaf0;
                     text-align: right;
-                    box-shadow: 0 8px 20px rgba(20, 25, 40, 0.05);
+                    box-shadow:
+                        0 8px 20px rgba(
+                            20,
+                            25,
+                            40,
+                            0.05
+                        );
                 }
 
                 .aurora-date {
@@ -404,7 +499,12 @@ export default async function AdminPage() {
                     background:
                         radial-gradient(
                             circle at 85% 15%,
-                            rgba(255,255,255,.16),
+                            rgba(
+                                255,
+                                255,
+                                255,
+                                .16
+                            ),
                             transparent 25%
                         ),
                         linear-gradient(
@@ -414,7 +514,12 @@ export default async function AdminPage() {
                             #5b21b6
                         );
                     box-shadow:
-                        0 18px 40px rgba(76, 29, 149, 0.18);
+                        0 18px 40px rgba(
+                            76,
+                            29,
+                            149,
+                            0.18
+                        );
                 }
 
                 .aurora-hero::before {
@@ -425,7 +530,12 @@ export default async function AdminPage() {
                     border-radius: 50%;
                     right: -90px;
                     top: -130px;
-                    background: rgba(255,255,255,.07);
+                    background: rgba(
+                        255,
+                        255,
+                        255,
+                        .07
+                    );
                 }
 
                 .aurora-hero::after {
@@ -436,7 +546,12 @@ export default async function AdminPage() {
                     border-radius: 50%;
                     left: 42%;
                     bottom: -120px;
-                    background: rgba(255,255,255,.05);
+                    background: rgba(
+                        255,
+                        255,
+                        255,
+                        .05
+                    );
                 }
 
                 .aurora-hero-content {
@@ -450,8 +565,18 @@ export default async function AdminPage() {
                     gap: 7px;
                     padding: 7px 11px;
                     border-radius: 999px;
-                    background: rgba(255,255,255,.11);
-                    border: 1px solid rgba(255,255,255,.16);
+                    background: rgba(
+                        255,
+                        255,
+                        255,
+                        .11
+                    );
+                    border: 1px solid rgba(
+                        255,
+                        255,
+                        255,
+                        .16
+                    );
                     font-size: 11px;
                     font-weight: 700;
                     margin-bottom: 16px;
@@ -465,7 +590,12 @@ export default async function AdminPage() {
                 }
 
                 .aurora-revenue-label {
-                    color: rgba(255,255,255,.72);
+                    color: rgba(
+                        255,
+                        255,
+                        255,
+                        .72
+                    );
                     font-size: 12px;
                     margin-bottom: 4px;
                 }
@@ -477,7 +607,12 @@ export default async function AdminPage() {
                 }
 
                 .aurora-revenue-info {
-                    color: rgba(255,255,255,.72);
+                    color: rgba(
+                        255,
+                        255,
+                        255,
+                        .72
+                    );
                     font-size: 12px;
                     margin-top: 4px;
                 }
@@ -487,7 +622,12 @@ export default async function AdminPage() {
                     margin-top: 14px;
                     padding: 6px 10px;
                     border-radius: 999px;
-                    background: rgba(34,197,94,.16);
+                    background: rgba(
+                        34,
+                        197,
+                        94,
+                        .16
+                    );
                     color: #bbf7d0;
                     font-size: 11px;
                     font-weight: 800;
@@ -503,7 +643,13 @@ export default async function AdminPage() {
                     border-radius: 23px;
                     padding: 21px;
                     margin-bottom: 18px;
-                    box-shadow: 0 10px 25px rgba(20,25,40,.05);
+                    box-shadow:
+                        0 10px 25px rgba(
+                            20,
+                            25,
+                            40,
+                            .05
+                        );
                 }
 
                 .aurora-chart-head {
@@ -578,7 +724,13 @@ export default async function AdminPage() {
                     border: 1px solid transparent !important;
                     border-radius: 23px;
                     isolation: isolate;
-                    box-shadow: 0 10px 25px rgba(20,25,40,.08);
+                    box-shadow:
+                        0 10px 25px rgba(
+                            20,
+                            25,
+                            40,
+                            .08
+                        );
                     transition:
                         box-shadow .25s ease,
                         border-color .25s ease;
@@ -592,7 +744,12 @@ export default async function AdminPage() {
                     border-radius: 50%;
                     right: -70px;
                     top: -80px;
-                    background: rgba(255,255,255,.08);
+                    background: rgba(
+                        255,
+                        255,
+                        255,
+                        .08
+                    );
                     z-index: -1;
                 }
 
@@ -604,7 +761,12 @@ export default async function AdminPage() {
                     border-radius: 50%;
                     left: -65px;
                     bottom: -70px;
-                    background: rgba(255,255,255,.06);
+                    background: rgba(
+                        255,
+                        255,
+                        255,
+                        .06
+                    );
                     z-index: -1;
                 }
 
@@ -615,14 +777,34 @@ export default async function AdminPage() {
                         #6d28d9 45%,
                         #7c3aed 100%
                     );
-                    border-color: rgba(124,58,237,.35) !important;
+                    border-color: rgba(
+                        124,
+                        58,
+                        237,
+                        .35
+                    ) !important;
                 }
 
                 .aurora-stat-orders:hover {
                     box-shadow:
-                        0 22px 50px rgba(124,58,237,.42),
-                        0 0 35px rgba(139,92,246,.18);
-                    border-color: rgba(139,92,246,.75) !important;
+                        0 22px 50px rgba(
+                            124,
+                            58,
+                            237,
+                            .42
+                        ),
+                        0 0 35px rgba(
+                            139,
+                            92,
+                            246,
+                            .18
+                        );
+                    border-color: rgba(
+                        139,
+                        92,
+                        246,
+                        .75
+                    ) !important;
                 }
 
                 .aurora-stat-revenue {
@@ -632,14 +814,34 @@ export default async function AdminPage() {
                         #0369a1 45%,
                         #0284c7 100%
                     );
-                    border-color: rgba(2,132,199,.35) !important;
+                    border-color: rgba(
+                        2,
+                        132,
+                        199,
+                        .35
+                    ) !important;
                 }
 
                 .aurora-stat-revenue:hover {
                     box-shadow:
-                        0 22px 50px rgba(2,132,199,.42),
-                        0 0 35px rgba(14,165,233,.18);
-                    border-color: rgba(14,165,233,.75) !important;
+                        0 22px 50px rgba(
+                            2,
+                            132,
+                            199,
+                            .42
+                        ),
+                        0 0 35px rgba(
+                            14,
+                            165,
+                            233,
+                            .18
+                        );
+                    border-color: rgba(
+                        14,
+                        165,
+                        233,
+                        .75
+                    ) !important;
                 }
 
                 .aurora-stat-customers {
@@ -649,14 +851,34 @@ export default async function AdminPage() {
                         #059669 45%,
                         #10b981 100%
                     );
-                    border-color: rgba(16,185,129,.35) !important;
+                    border-color: rgba(
+                        16,
+                        185,
+                        129,
+                        .35
+                    ) !important;
                 }
 
                 .aurora-stat-customers:hover {
                     box-shadow:
-                        0 22px 50px rgba(5,150,105,.42),
-                        0 0 35px rgba(16,185,129,.18);
-                    border-color: rgba(52,211,153,.75) !important;
+                        0 22px 50px rgba(
+                            5,
+                            150,
+                            105,
+                            .42
+                        ),
+                        0 0 35px rgba(
+                            16,
+                            185,
+                            129,
+                            .18
+                        );
+                    border-color: rgba(
+                        52,
+                        211,
+                        153,
+                        .75
+                    ) !important;
                 }
 
                 .aurora-stat-products {
@@ -666,14 +888,71 @@ export default async function AdminPage() {
                         #ea580c 45%,
                         #f97316 100%
                     );
-                    border-color: rgba(249,115,22,.35) !important;
+                    border-color: rgba(
+                        249,
+                        115,
+                        22,
+                        .35
+                    ) !important;
                 }
 
                 .aurora-stat-products:hover {
                     box-shadow:
-                        0 22px 50px rgba(234,88,12,.42),
-                        0 0 35px rgba(249,115,22,.20);
-                    border-color: rgba(251,146,60,.80) !important;
+                        0 22px 50px rgba(
+                            234,
+                            88,
+                            12,
+                            .42
+                        ),
+                        0 0 35px rgba(
+                            249,
+                            115,
+                            22,
+                            .20
+                        );
+                    border-color: rgba(
+                        251,
+                        146,
+                        60,
+                        .80
+                    ) !important;
+                }
+
+                .aurora-stat-customer-care {
+                    background: linear-gradient(
+                        135deg,
+                        #0f766e 0%,
+                        #0d9488 45%,
+                        #14b8a6 100%
+                    );
+                    border-color: rgba(
+                        20,
+                        184,
+                        166,
+                        .35
+                    ) !important;
+                }
+
+                .aurora-stat-customer-care:hover {
+                    box-shadow:
+                        0 22px 50px rgba(
+                            13,
+                            148,
+                            136,
+                            .42
+                        ),
+                        0 0 35px rgba(
+                            20,
+                            184,
+                            166,
+                            .18
+                        );
+                    border-color: rgba(
+                        45,
+                        212,
+                        191,
+                        .80
+                    ) !important;
                 }
 
                 .aurora-stat-head {
@@ -686,7 +965,12 @@ export default async function AdminPage() {
                 .aurora-stat-label {
                     font-size: 12px;
                     font-weight: 700;
-                    color: rgba(255,255,255,.78);
+                    color: rgba(
+                        255,
+                        255,
+                        255,
+                        .78
+                    );
                 }
 
                 .aurora-stat-icon {
@@ -696,8 +980,18 @@ export default async function AdminPage() {
                     display: flex;
                     align-items: center;
                     justify-content: center;
-                    background: rgba(255,255,255,.15);
-                    border: 1px solid rgba(255,255,255,.16);
+                    background: rgba(
+                        255,
+                        255,
+                        255,
+                        .15
+                    );
+                    border: 1px solid rgba(
+                        255,
+                        255,
+                        255,
+                        .16
+                    );
                     color: #fff;
                     font-size: 18px;
                     font-weight: 900;
@@ -714,7 +1008,12 @@ export default async function AdminPage() {
                 .aurora-stat-footer {
                     margin-top: 17px;
                     font-size: 11px;
-                    color: rgba(255,255,255,.72);
+                    color: rgba(
+                        255,
+                        255,
+                        255,
+                        .72
+                    );
                     font-weight: 700;
                 }
 
@@ -728,14 +1027,26 @@ export default async function AdminPage() {
                     border-radius: 23px;
                     padding: 21px;
                     height: 100%;
-                    box-shadow: 0 10px 25px rgba(20,25,40,.05);
+                    box-shadow:
+                        0 10px 25px rgba(
+                            20,
+                            25,
+                            40,
+                            .05
+                        );
                     transition:
                         box-shadow .25s ease,
                         border-color .25s ease;
                 }
 
                 .aurora-card:hover {
-                    box-shadow: 0 18px 38px rgba(20,25,40,.08);
+                    box-shadow:
+                        0 18px 38px rgba(
+                            20,
+                            25,
+                            40,
+                            .08
+                        );
                     border-color: #dddfea;
                 }
 
@@ -978,7 +1289,12 @@ export default async function AdminPage() {
                     border-radius: 50%;
                     right: -75px;
                     top: -70px;
-                    background: rgba(255,255,255,.08);
+                    background: rgba(
+                        255,
+                        255,
+                        255,
+                        .08
+                    );
                     pointer-events: none;
                 }
 
@@ -988,7 +1304,12 @@ export default async function AdminPage() {
                         #4338ca,
                         #6366f1
                     );
-                    border-color: rgba(99,102,241,.35);
+                    border-color: rgba(
+                        99,
+                        102,
+                        241,
+                        .35
+                    );
                 }
 
                 .aurora-action-products:hover {
@@ -997,10 +1318,25 @@ export default async function AdminPage() {
                         #3730a3,
                         #4f46e5
                     );
-                    border-color: rgba(129,140,248,.75);
+                    border-color: rgba(
+                        129,
+                        140,
+                        248,
+                        .75
+                    );
                     box-shadow:
-                        0 18px 38px rgba(79,70,229,.30),
-                        0 0 25px rgba(99,102,241,.14);
+                        0 18px 38px rgba(
+                            79,
+                            70,
+                            229,
+                            .30
+                        ),
+                        0 0 25px rgba(
+                            99,
+                            102,
+                            241,
+                            .14
+                        );
                 }
 
                 .aurora-action-add {
@@ -1009,7 +1345,12 @@ export default async function AdminPage() {
                         #047857,
                         #10b981
                     );
-                    border-color: rgba(16,185,129,.35);
+                    border-color: rgba(
+                        16,
+                        185,
+                        129,
+                        .35
+                    );
                 }
 
                 .aurora-action-add:hover {
@@ -1018,10 +1359,25 @@ export default async function AdminPage() {
                         #065f46,
                         #059669
                     );
-                    border-color: rgba(52,211,153,.75);
+                    border-color: rgba(
+                        52,
+                        211,
+                        153,
+                        .75
+                    );
                     box-shadow:
-                        0 18px 38px rgba(5,150,105,.30),
-                        0 0 25px rgba(16,185,129,.14);
+                        0 18px 38px rgba(
+                            5,
+                            150,
+                            105,
+                            .30
+                        ),
+                        0 0 25px rgba(
+                            16,
+                            185,
+                            129,
+                            .14
+                        );
                 }
 
                 .aurora-action-store {
@@ -1030,7 +1386,12 @@ export default async function AdminPage() {
                         #c2410c,
                         #f97316
                     );
-                    border-color: rgba(249,115,22,.35);
+                    border-color: rgba(
+                        249,
+                        115,
+                        22,
+                        .35
+                    );
                 }
 
                 .aurora-action-store:hover {
@@ -1039,10 +1400,25 @@ export default async function AdminPage() {
                         #9a3412,
                         #ea580c
                     );
-                    border-color: rgba(251,146,60,.75);
+                    border-color: rgba(
+                        251,
+                        146,
+                        60,
+                        .75
+                    );
                     box-shadow:
-                        0 18px 38px rgba(234,88,12,.30),
-                        0 0 25px rgba(249,115,22,.14);
+                        0 18px 38px rgba(
+                            234,
+                            88,
+                            12,
+                            .30
+                        ),
+                        0 0 25px rgba(
+                            249,
+                            115,
+                            22,
+                            .14
+                        );
                 }
 
                 .aurora-action-icon {
@@ -1055,8 +1431,18 @@ export default async function AdminPage() {
                     align-items: center;
                     justify-content: center;
                     border-radius: 15px;
-                    background: rgba(255,255,255,.15);
-                    border: 1px solid rgba(255,255,255,.16);
+                    background: rgba(
+                        255,
+                        255,
+                        255,
+                        .15
+                    );
+                    border: 1px solid rgba(
+                        255,
+                        255,
+                        255,
+                        .16
+                    );
                     font-size: 20px;
                 }
 
@@ -1074,7 +1460,12 @@ export default async function AdminPage() {
                 }
 
                 .aurora-action-desc {
-                    color: rgba(255,255,255,.72);
+                    color: rgba(
+                        255,
+                        255,
+                        255,
+                        .72
+                    );
                     font-size: 10px;
                     margin-top: 3px;
                 }
@@ -1082,7 +1473,12 @@ export default async function AdminPage() {
                 .aurora-action-arrow {
                     position: relative;
                     z-index: 2;
-                    color: rgba(255,255,255,.75);
+                    color: rgba(
+                        255,
+                        255,
+                        255,
+                        .75
+                    );
                     font-size: 18px;
                     font-weight: 800;
                 }
@@ -1182,8 +1578,7 @@ export default async function AdminPage() {
                         min-height: 82px;
                     }
                 }
-            `}
-            </style>
+            `}</style>
 
             <script
                 dangerouslySetInnerHTML={{
@@ -1283,6 +1678,7 @@ export default async function AdminPage() {
 
                     <header className="aurora-header">
                         <div className="aurora-header-left">
+
                             <div className="aurora-logo">
                                 A
                             </div>
@@ -1305,10 +1701,13 @@ export default async function AdminPage() {
                                     Monitor your store performance and operations.
                                 </p>
                             </div>
+
                         </div>
 
                         <div className="aurora-header-right">
+
                             <div className="aurora-admin-pill">
+
                                 <div className="aurora-admin-avatar">
                                     {user.name?.charAt(0).toUpperCase() || "A"}
                                 </div>
@@ -1322,9 +1721,11 @@ export default async function AdminPage() {
                                         Administrator
                                     </div>
                                 </div>
+
                             </div>
 
                             <div className="aurora-time-box">
+
                                 <div
                                     className="aurora-date"
                                     id="aurora-live-date"
@@ -1338,7 +1739,9 @@ export default async function AdminPage() {
                                 >
                                     --:--:--
                                 </div>
+
                             </div>
+
                         </div>
                     </header>
 
@@ -1347,6 +1750,7 @@ export default async function AdminPage() {
                     ========================= */}
 
                     <section className="aurora-hero">
+
                         <div className="aurora-hero-content">
 
                             <div className="aurora-live-badge">
@@ -1371,6 +1775,7 @@ export default async function AdminPage() {
                             </div>
 
                         </div>
+
                     </section>
 
                     {/* =========================
@@ -1378,8 +1783,11 @@ export default async function AdminPage() {
                     ========================= */}
 
                     <section className="aurora-chart">
+
                         <div className="aurora-chart-head">
+
                             <div>
+
                                 <div className="aurora-chart-title">
                                     Sales Overview
                                 </div>
@@ -1387,14 +1795,17 @@ export default async function AdminPage() {
                                 <div className="aurora-card-desc">
                                     Revenue performance over the last 30 days
                                 </div>
+
                             </div>
 
                             <div className="aurora-chart-total">
                                 {money(total30DayRevenue)}
                             </div>
+
                         </div>
 
                         <div className="aurora-bars">
+
                             {chartData.map((item) => (
                                 <div
                                     className="aurora-bar-holder"
@@ -1418,9 +1829,11 @@ export default async function AdminPage() {
                                     />
                                 </div>
                             ))}
+
                         </div>
 
                         <div className="aurora-chart-bottom">
+
                             <span>
                                 {chartData[0]?.label}
                             </span>
@@ -1430,9 +1843,13 @@ export default async function AdminPage() {
                             </span>
 
                             <span>
-                                {chartData[chartData.length - 1]?.label}
+                                {chartData[
+                                    chartData.length - 1
+                                ]?.label}
                             </span>
+
                         </div>
+
                     </section>
 
                     {/* =========================
@@ -1442,11 +1859,14 @@ export default async function AdminPage() {
                     <div className="row g-3 mb-4">
 
                         <div className="col-6 col-xl-3">
+
                             <Link
                                 href="/admin/orders"
                                 className="aurora-stat aurora-stat-orders"
                             >
+
                                 <div className="aurora-stat-head">
+
                                     <span className="aurora-stat-label">
                                         Orders
                                     </span>
@@ -1454,6 +1874,7 @@ export default async function AdminPage() {
                                     <div className="aurora-stat-icon">
                                         🛍
                                     </div>
+
                                 </div>
 
                                 <div className="aurora-stat-value">
@@ -1465,15 +1886,20 @@ export default async function AdminPage() {
                                 <div className="aurora-stat-footer">
                                     View all orders →
                                 </div>
+
                             </Link>
+
                         </div>
 
                         <div className="col-6 col-xl-3">
+
                             <Link
                                 href="/admin/revenue"
                                 className="aurora-stat aurora-stat-revenue"
                             >
+
                                 <div className="aurora-stat-head">
+
                                     <span className="aurora-stat-label">
                                         Revenue
                                     </span>
@@ -1481,6 +1907,7 @@ export default async function AdminPage() {
                                     <div className="aurora-stat-icon">
                                         ₹
                                     </div>
+
                                 </div>
 
                                 <div className="aurora-stat-value">
@@ -1490,15 +1917,20 @@ export default async function AdminPage() {
                                 <div className="aurora-stat-footer">
                                     Revenue analytics →
                                 </div>
+
                             </Link>
+
                         </div>
 
                         <div className="col-6 col-xl-3">
+
                             <Link
                                 href="/admin/customers"
                                 className="aurora-stat aurora-stat-customers"
                             >
+
                                 <div className="aurora-stat-head">
+
                                     <span className="aurora-stat-label">
                                         Customers
                                     </span>
@@ -1506,6 +1938,7 @@ export default async function AdminPage() {
                                     <div className="aurora-stat-icon">
                                         👥
                                     </div>
+
                                 </div>
 
                                 <div className="aurora-stat-value">
@@ -1517,15 +1950,20 @@ export default async function AdminPage() {
                                 <div className="aurora-stat-footer">
                                     Customer directory →
                                 </div>
+
                             </Link>
+
                         </div>
 
                         <div className="col-6 col-xl-3">
+
                             <Link
                                 href="/admin/products"
                                 className="aurora-stat aurora-stat-products"
                             >
+
                                 <div className="aurora-stat-head">
+
                                     <span className="aurora-stat-label">
                                         Products
                                     </span>
@@ -1533,6 +1971,7 @@ export default async function AdminPage() {
                                     <div className="aurora-stat-icon">
                                         📦
                                     </div>
+
                                 </div>
 
                                 <div className="aurora-stat-value">
@@ -1544,7 +1983,48 @@ export default async function AdminPage() {
                                 <div className="aurora-stat-footer">
                                     Manage products →
                                 </div>
+
                             </Link>
+
+                        </div>
+
+                        <div className="col-6 col-xl-3">
+
+                            <Link
+                                href="/admin/customer-care"
+                                className="aurora-stat aurora-stat-customer-care"
+                            >
+
+                                <div className="aurora-stat-head">
+
+                                    <span className="aurora-stat-label">
+                                        Customer Care
+                                    </span>
+
+                                    <div className="aurora-stat-icon">
+                                        💬
+                                    </div>
+
+                                </div>
+
+                                <div className="aurora-stat-value">
+                                    {customerCareNew.toLocaleString(
+                                        "en-IN"
+                                    )}
+                                </div>
+
+                                <div className="aurora-stat-footer">
+                                    {customerCareNew > 0
+                                        ? `${customerCareNew} new message${
+                                              customerCareNew === 1
+                                                  ? ""
+                                                  : "s"
+                                          } →`
+                                        : "No new messages →"}
+                                </div>
+
+                            </Link>
+
                         </div>
 
                     </div>
@@ -1556,10 +2036,13 @@ export default async function AdminPage() {
                     <div className="row g-3 mb-4">
 
                         <div className="col-lg-6">
+
                             <section className="aurora-card">
 
                                 <div className="aurora-card-head">
+
                                     <div>
+
                                         <div className="aurora-card-title">
                                             Order Status
                                         </div>
@@ -1567,6 +2050,7 @@ export default async function AdminPage() {
                                         <div className="aurora-card-desc">
                                             Current order distribution
                                         </div>
+
                                     </div>
 
                                     <Link
@@ -1575,23 +2059,31 @@ export default async function AdminPage() {
                                     >
                                         View Orders →
                                     </Link>
+
                                 </div>
 
                                 <div className="aurora-pulse">
 
                                     <div className="aurora-status-row">
+
                                         <div className="aurora-status-head">
+
                                             <div className="aurora-status-name">
+
                                                 <span className="aurora-status-dot status-pending" />
+
                                                 Pending
+
                                             </div>
 
                                             <div className="aurora-status-count">
                                                 {pendingCount}
                                             </div>
+
                                         </div>
 
                                         <div className="aurora-progress">
+
                                             <div
                                                 className="aurora-progress-fill fill-pending"
                                                 style={{
@@ -1600,22 +2092,31 @@ export default async function AdminPage() {
                                                     )}%`,
                                                 }}
                                             />
+
                                         </div>
+
                                     </div>
 
                                     <div className="aurora-status-row">
+
                                         <div className="aurora-status-head">
+
                                             <div className="aurora-status-name">
+
                                                 <span className="aurora-status-dot status-processing" />
+
                                                 Processing
+
                                             </div>
 
                                             <div className="aurora-status-count">
                                                 {processingCount}
                                             </div>
+
                                         </div>
 
                                         <div className="aurora-progress">
+
                                             <div
                                                 className="aurora-progress-fill fill-processing"
                                                 style={{
@@ -1624,22 +2125,31 @@ export default async function AdminPage() {
                                                     )}%`,
                                                 }}
                                             />
+
                                         </div>
+
                                     </div>
 
                                     <div className="aurora-status-row">
+
                                         <div className="aurora-status-head">
+
                                             <div className="aurora-status-name">
+
                                                 <span className="aurora-status-dot status-shipped" />
+
                                                 Shipped
+
                                             </div>
 
                                             <div className="aurora-status-count">
                                                 {shippedCount}
                                             </div>
+
                                         </div>
 
                                         <div className="aurora-progress">
+
                                             <div
                                                 className="aurora-progress-fill fill-shipped"
                                                 style={{
@@ -1648,22 +2158,31 @@ export default async function AdminPage() {
                                                     )}%`,
                                                 }}
                                             />
+
                                         </div>
+
                                     </div>
 
                                     <div className="aurora-status-row">
+
                                         <div className="aurora-status-head">
+
                                             <div className="aurora-status-name">
+
                                                 <span className="aurora-status-dot status-delivered" />
+
                                                 Delivered
+
                                             </div>
 
                                             <div className="aurora-status-count">
                                                 {deliveredCount}
                                             </div>
+
                                         </div>
 
                                         <div className="aurora-progress">
+
                                             <div
                                                 className="aurora-progress-fill fill-delivered"
                                                 style={{
@@ -1672,18 +2191,25 @@ export default async function AdminPage() {
                                                     )}%`,
                                                 }}
                                             />
+
                                         </div>
+
                                     </div>
 
                                 </div>
+
                             </section>
+
                         </div>
 
                         <div className="col-lg-6">
+
                             <section className="aurora-card">
 
                                 <div className="aurora-card-head">
+
                                     <div>
+
                                         <div className="aurora-card-title">
                                             Top Products
                                         </div>
@@ -1691,6 +2217,7 @@ export default async function AdminPage() {
                                         <div className="aurora-card-desc">
                                             Best performing products
                                         </div>
+
                                     </div>
 
                                     <Link
@@ -1699,6 +2226,7 @@ export default async function AdminPage() {
                                     >
                                         View Products →
                                     </Link>
+
                                 </div>
 
                                 {topProducts.length === 0 ? (
@@ -1707,16 +2235,21 @@ export default async function AdminPage() {
                                     </div>
                                 ) : (
                                     topProducts.map(
-                                        (product, index) => (
+                                        (
+                                            product,
+                                            index
+                                        ) => (
                                             <div
                                                 className="aurora-top-row"
                                                 key={product.id}
                                             >
+
                                                 <div className="aurora-rank">
                                                     #{index + 1}
                                                 </div>
 
                                                 <div className="aurora-top-img">
+
                                                     {product.image_url ? (
                                                         <img
                                                             src={
@@ -1729,8 +2262,10 @@ export default async function AdminPage() {
                                                     ) : (
                                                         <div
                                                             style={{
-                                                                width: "100%",
-                                                                height: "100%",
+                                                                width:
+                                                                    "100%",
+                                                                height:
+                                                                    "100%",
                                                                 display:
                                                                     "flex",
                                                                 alignItems:
@@ -1744,14 +2279,17 @@ export default async function AdminPage() {
                                                             📦
                                                         </div>
                                                     )}
+
                                                 </div>
 
                                                 <div className="aurora-top-info">
+
                                                     <div className="aurora-top-name">
                                                         {product.name}
                                                     </div>
 
                                                     <div className="aurora-top-progress">
+
                                                         <div
                                                             className="aurora-top-progress-fill"
                                                             style={{
@@ -1769,10 +2307,13 @@ export default async function AdminPage() {
                                                                 )}%`,
                                                             }}
                                                         />
+
                                                     </div>
+
                                                 </div>
 
                                                 <div className="aurora-top-number">
+
                                                     <strong>
                                                         {Number(
                                                             product.total_sold
@@ -1782,13 +2323,16 @@ export default async function AdminPage() {
                                                     <span>
                                                         sold
                                                     </span>
+
                                                 </div>
+
                                             </div>
                                         )
                                     )
                                 )}
 
                             </section>
+
                         </div>
 
                     </div>
@@ -1800,7 +2344,9 @@ export default async function AdminPage() {
                     <section className="aurora-card">
 
                         <div className="aurora-card-head">
+
                             <div>
+
                                 <div className="aurora-card-title">
                                     Quick Actions
                                 </div>
@@ -1808,21 +2354,26 @@ export default async function AdminPage() {
                                 <div className="aurora-card-desc">
                                     Frequently used store management actions
                                 </div>
+
                             </div>
+
                         </div>
 
                         <div className="row g-3">
 
                             <div className="col-md-4">
+
                                 <Link
                                     href="/admin/products"
                                     className="aurora-action aurora-action-products"
                                 >
+
                                     <div className="aurora-action-icon">
                                         📦
                                     </div>
 
                                     <div className="aurora-action-content">
+
                                         <div className="aurora-action-title">
                                             Products
                                         </div>
@@ -1830,24 +2381,30 @@ export default async function AdminPage() {
                                         <div className="aurora-action-desc">
                                             Manage your complete product catalog
                                         </div>
+
                                     </div>
 
                                     <div className="aurora-action-arrow">
                                         →
                                     </div>
+
                                 </Link>
+
                             </div>
 
                             <div className="col-md-4">
+
                                 <Link
                                     href="/admin/products/new"
                                     className="aurora-action aurora-action-add"
                                 >
+
                                     <div className="aurora-action-icon">
                                         ＋
                                     </div>
 
                                     <div className="aurora-action-content">
+
                                         <div className="aurora-action-title">
                                             Add Product
                                         </div>
@@ -1855,24 +2412,30 @@ export default async function AdminPage() {
                                         <div className="aurora-action-desc">
                                             Create and publish a new product
                                         </div>
+
                                     </div>
 
                                     <div className="aurora-action-arrow">
                                         →
                                     </div>
+
                                 </Link>
+
                             </div>
 
                             <div className="col-md-4">
+
                                 <Link
                                     href="/"
                                     className="aurora-action aurora-action-store"
                                 >
+
                                     <div className="aurora-action-icon">
                                         🏪
                                     </div>
 
                                     <div className="aurora-action-content">
+
                                         <div className="aurora-action-title">
                                             Store Front
                                         </div>
@@ -1880,15 +2443,19 @@ export default async function AdminPage() {
                                         <div className="aurora-action-desc">
                                             Open and preview your customer store
                                         </div>
+
                                     </div>
 
                                     <div className="aurora-action-arrow">
                                         →
                                     </div>
+
                                 </Link>
+
                             </div>
 
                         </div>
+
                     </section>
 
                 </div>

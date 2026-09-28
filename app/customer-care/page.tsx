@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { FormEvent, useState } from "react";
 import {
   CheckCircle2,
+  Loader2,
   Mail,
   MapPin,
   MessageCircle,
@@ -11,9 +12,20 @@ import {
   X,
 } from "lucide-react";
 
-export default function CustomerCarePage() {
+type FormData = {
+  name: string;
+  email: string;
+  phone: string;
+  subject: string;
+  message: string;
+};
+
+export default function CustomerCareModal() {
   const [submitted, setSubmitted] = useState(false);
-  const [form, setForm] = useState({
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
+
+  const [form, setForm] = useState<FormData>({
     name: "",
     email: "",
     phone: "",
@@ -24,355 +36,328 @@ export default function CustomerCarePage() {
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
   ) => {
-    setForm({ ...form, [e.target.name]: e.target.value });
+    const { name, value } = e.target;
+
+    setForm((prev) => ({
+      ...prev,
+      [name]: value,
+    }));
+
+    if (error) {
+      setError("");
+    }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    setSubmitted(true);
-    setForm({
-      name: "",
-      email: "",
-      phone: "",
-      subject: "",
-      message: "",
-    });
-    setTimeout(() => setSubmitted(false), 5000);
+
+    if (submitting) return;
+
+    setSubmitting(true);
+    setError("");
+
+    try {
+      const response = await fetch("/api/customer-care", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(form),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        throw new Error(
+          data.message || "Unable to submit your message."
+        );
+      }
+
+      setSubmitted(true);
+
+      setForm({
+        name: "",
+        email: "",
+        phone: "",
+        subject: "",
+        message: "",
+      });
+    } catch (error) {
+      setError(
+        error instanceof Error
+          ? error.message
+          : "Unable to submit your message. Please try again."
+      );
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const closeModal = () => {
+    if (submitting) return;
+
+    window.history.back();
   };
 
   return (
     <div
-      className="modal fade show d-block"
-      tabIndex={-1}
-      role="dialog"
+      className="position-fixed top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center"
       style={{
+        zIndex: 2000,
         background: "rgba(15, 23, 42, .62)",
         backdropFilter: "blur(6px)",
+        padding: "20px",
       }}
     >
       <div
-        className="modal-dialog modal-dialog-centered modal-xl modal-dialog-scrollable"
-        role="document"
+        className="bg-white w-100 overflow-hidden"
+        style={{
+          maxWidth: "1100px",
+          maxHeight: "92vh",
+          borderRadius: "24px",
+          boxShadow: "0 30px 80px rgba(15, 23, 42, .28)",
+          overflowY: "auto",
+        }}
       >
         <div
-          className="modal-content border-0 overflow-hidden"
+          className="position-relative text-white"
           style={{
-            borderRadius: 24,
-            background: "#f7faff",
-            boxShadow: "0 30px 90px rgba(15, 23, 42, .28)",
+            background:
+              "linear-gradient(135deg, #173b67 0%, #2563a6 48%, #4d83c4 100%)",
+            padding: "28px 32px",
           }}
         >
-          {/* Header */}
           <div
-            className="position-relative overflow-hidden px-4 px-md-5 py-4"
+            className="position-absolute rounded-circle"
             style={{
-              background:
-                "linear-gradient(135deg, #173b67 0%, #2563a6 48%, #4d83c4 100%)",
-              color: "#fff",
+              width: "150px",
+              height: "150px",
+              right: "-50px",
+              top: "-80px",
+              background: "rgba(255,255,255,.08)",
+            }}
+          />
+
+          <div
+            className="position-absolute rounded-circle"
+            style={{
+              width: "100px",
+              height: "100px",
+              right: "100px",
+              bottom: "-65px",
+              background: "rgba(255,255,255,.06)",
+            }}
+          />
+
+          <button
+            type="button"
+            onClick={closeModal}
+            disabled={submitting}
+            className="btn btn-light position-absolute top-0 end-0 m-3 d-flex align-items-center justify-content-center"
+            style={{
+              width: "38px",
+              height: "38px",
+              borderRadius: "12px",
+              opacity: submitting ? 0.5 : 1,
             }}
           >
+            <X size={19} />
+          </button>
+
+          <div
+            className="text-uppercase fw-semibold mb-2"
+            style={{
+              fontSize: "12px",
+              letterSpacing: "2px",
+              opacity: 0.75,
+            }}
+          >
+            AURORA SUPPORT
+          </div>
+
+          <h2 className="fw-bold mb-2">Customer Care</h2>
+
+          <p
+            className="mb-0"
+            style={{
+              maxWidth: "650px",
+              opacity: 0.88,
+              lineHeight: 1.6,
+            }}
+          >
+            Have a question or need help with your order? Send us a
+            message and our support team will get back to you.
+          </p>
+        </div>
+
+        <div className="p-4 p-lg-5">
+          {submitted ? (
             <div
-              className="position-absolute rounded-circle"
+              className="text-center py-5 px-3"
               style={{
-                width: 180,
-                height: 180,
-                right: -55,
-                top: -100,
-                background: "rgba(255,255,255,.08)",
+                background: "#f4f9ff",
+                borderRadius: "20px",
               }}
-            />
-
-            <div
-              className="position-absolute rounded-circle"
-              style={{
-                width: 110,
-                height: 110,
-                right: 100,
-                bottom: -75,
-                background: "rgba(255,255,255,.06)",
-              }}
-            />
-
-            <div className="position-relative d-flex align-items-center justify-content-between">
-              <div className="d-flex align-items-center gap-3">
-                <div
-                  className="d-flex align-items-center justify-content-center rounded-4"
-                  style={{
-                    width: 52,
-                    height: 52,
-                    background: "rgba(255,255,255,.14)",
-                    border: "1px solid rgba(255,255,255,.18)",
-                    boxShadow: "0 8px 20px rgba(0,0,0,.12)",
-                  }}
-                >
-                  <MessageCircle size={25} />
-                </div>
-
-                <div>
-                  <div
-                    className="small fw-semibold mb-1"
-                    style={{ color: "rgba(255,255,255,.7)" }}
-                  >
-                    AURORA SUPPORT
-                  </div>
-                  <h4 className="fw-bold mb-0">Customer Care</h4>
-                  <div
-                    className="small mt-1"
-                    style={{ color: "rgba(255,255,255,.75)" }}
-                  >
-                    We're here to help you
-                  </div>
-                </div>
+            >
+              <div
+                className="d-inline-flex align-items-center justify-content-center rounded-circle mb-3"
+                style={{
+                  width: "72px",
+                  height: "72px",
+                  background: "#e2f7eb",
+                  color: "#198754",
+                }}
+              >
+                <CheckCircle2 size={38} />
               </div>
+
+              <h4 className="fw-bold text-dark mb-2">
+                Message Sent Successfully
+              </h4>
+
+              <p
+                className="text-secondary mx-auto mb-4"
+                style={{ maxWidth: "520px" }}
+              >
+                Thank you for contacting Aurora Customer Care. Your
+                message has been received and our support team will
+                review it shortly.
+              </p>
 
               <button
                 type="button"
-                onClick={() => window.history.back()}
-                className="btn p-0 border-0 d-flex align-items-center justify-content-center"
-                aria-label="Close"
+                onClick={closeModal}
+                className="btn text-white px-4 py-2"
                 style={{
-                  width: 40,
-                  height: 40,
-                  borderRadius: 12,
-                  color: "#fff",
-                  background: "rgba(255,255,255,.12)",
+                  border: 0,
+                  borderRadius: "12px",
+                  background:
+                    "linear-gradient(135deg, #2563a6, #4d83c4)",
                 }}
               >
-                <X size={21} />
+                Close
               </button>
             </div>
-          </div>
-
-          {/* Body */}
-          <div className="modal-body p-4 p-md-5">
-            {submitted && (
-              <div
-                className="d-flex align-items-center gap-3 rounded-4 p-3 mb-4"
-                style={{
-                  background: "#ecfdf5",
-                  color: "#16734b",
-                  border: "1px solid #b7efd3",
-                }}
-              >
-                <CheckCircle2 size={21} />
-                <div>
-                  <div className="fw-semibold">Message sent successfully</div>
-                  <div className="small">
-                    Our customer care team will get back to you.
-                  </div>
-                </div>
-              </div>
-            )}
-
+          ) : (
             <div className="row g-4">
-              {/* Support Information */}
               <div className="col-lg-4">
                 <div
-                  className="h-100 rounded-4 p-4"
+                  className="h-100 p-4"
                   style={{
-                    background:
-                      "linear-gradient(145deg, #eaf3ff 0%, #f4f8ff 100%)",
-                    border: "1px solid #dbe9f8",
+                    background: "#f1f7ff",
+                    borderRadius: "20px",
+                    border: "1px solid #dcecff",
                   }}
                 >
                   <div
-                    className="d-inline-flex align-items-center justify-content-center rounded-3 mb-3"
+                    className="d-flex align-items-center justify-content-center rounded-3 mb-3"
                     style={{
-                      width: 46,
-                      height: 46,
+                      width: "48px",
+                      height: "48px",
                       background:
-                        "linear-gradient(135deg, #2563a6, #5b8fca)",
+                        "linear-gradient(135deg, #2563a6, #4d83c4)",
                       color: "#fff",
-                      boxShadow: "0 8px 18px rgba(37,99,166,.2)",
                     }}
                   >
-                    <MessageCircle size={21} />
+                    <MessageCircle size={23} />
                   </div>
 
-                  <h5 className="fw-bold mb-2" style={{ color: "#183b63" }}>
-                    We're here to help
+                  <h5 className="fw-bold text-dark">
+                    How can we help?
                   </h5>
 
                   <p
-                    className="small mb-4"
-                    style={{
-                      color: "#68788d",
-                      lineHeight: 1.7,
-                    }}
+                    className="text-secondary small"
+                    style={{ lineHeight: 1.7 }}
                   >
-                    Have a question about your order, product, payment,
-                    delivery, or account? Send us a message and our team will
-                    assist you.
+                    Our Customer Care team is here to help with orders,
+                    products, payments, deliveries and other questions.
                   </p>
 
-                  <div className="d-flex flex-column gap-3">
-                    <div
-                      className="d-flex align-items-center gap-3 p-3 rounded-3"
-                      style={{
-                        background: "#fff",
-                        border: "1px solid #e4edf7",
-                      }}
-                    >
-                      <div
-                        className="d-flex align-items-center justify-content-center rounded-3 flex-shrink-0"
-                        style={{
-                          width: 40,
-                          height: 40,
-                          background: "#eaf3ff",
-                          color: "#2563a6",
-                        }}
-                      >
-                        <Mail size={18} />
-                      </div>
-
+                  <div className="mt-4">
+                    <div className="d-flex gap-3 mb-3">
+                      <Mail
+                        size={19}
+                        className="text-primary flex-shrink-0 mt-1"
+                      />
                       <div>
-                        <div
-                          className="small"
-                          style={{ color: "#7a8798" }}
-                        >
+                        <div className="fw-semibold text-dark small">
                           Email
                         </div>
-                        <div
-                          className="small fw-semibold"
-                          style={{ color: "#263b54" }}
-                        >
+                        <div className="text-secondary small">
                           support@aurora.com
                         </div>
                       </div>
                     </div>
 
-                    <div
-                      className="d-flex align-items-center gap-3 p-3 rounded-3"
-                      style={{
-                        background: "#fff",
-                        border: "1px solid #e4edf7",
-                      }}
-                    >
-                      <div
-                        className="d-flex align-items-center justify-content-center rounded-3 flex-shrink-0"
-                        style={{
-                          width: 40,
-                          height: 40,
-                          background: "#eaf3ff",
-                          color: "#2563a6",
-                        }}
-                      >
-                        <Phone size={18} />
-                      </div>
-
+                    <div className="d-flex gap-3 mb-3">
+                      <Phone
+                        size={19}
+                        className="text-primary flex-shrink-0 mt-1"
+                      />
                       <div>
-                        <div
-                          className="small"
-                          style={{ color: "#7a8798" }}
-                        >
+                        <div className="fw-semibold text-dark small">
                           Phone
                         </div>
-                        <div
-                          className="small fw-semibold"
-                          style={{ color: "#263b54" }}
-                        >
+                        <div className="text-secondary small">
                           +91 98765 43210
                         </div>
                       </div>
                     </div>
 
-                    <div
-                      className="d-flex align-items-center gap-3 p-3 rounded-3"
-                      style={{
-                        background: "#fff",
-                        border: "1px solid #e4edf7",
-                      }}
-                    >
-                      <div
-                        className="d-flex align-items-center justify-content-center rounded-3 flex-shrink-0"
-                        style={{
-                          width: 40,
-                          height: 40,
-                          background: "#eaf3ff",
-                          color: "#2563a6",
-                        }}
-                      >
-                        <MapPin size={18} />
-                      </div>
-
+                    <div className="d-flex gap-3">
+                      <MapPin
+                        size={19}
+                        className="text-primary flex-shrink-0 mt-1"
+                      />
                       <div>
-                        <div
-                          className="small"
-                          style={{ color: "#7a8798" }}
-                        >
-                          Location
+                        <div className="fw-semibold text-dark small">
+                          Support Hours
                         </div>
-                        <div
-                          className="small fw-semibold"
-                          style={{ color: "#263b54" }}
-                        >
-                          Andhra Pradesh, India
+                        <div className="text-secondary small">
+                          Monday - Saturday
+                          <br />
+                          9:00 AM - 6:00 PM
                         </div>
                       </div>
-                    </div>
-                  </div>
-
-                  <div
-                    className="mt-4 p-3 rounded-3"
-                    style={{
-                      background: "#fff",
-                      border: "1px solid #e4edf7",
-                    }}
-                  >
-                    <div
-                      className="small fw-bold mb-1"
-                      style={{ color: "#263b54" }}
-                    >
-                      Support Hours
-                    </div>
-
-                    <div
-                      className="small"
-                      style={{ color: "#718096" }}
-                    >
-                      Monday – Saturday · 9:00 AM – 6:00 PM
                     </div>
                   </div>
                 </div>
               </div>
 
-              {/* Contact Form */}
               <div className="col-lg-8">
                 <div
-                  className="rounded-4 p-4 p-md-4"
+                  className="p-4"
                   style={{
-                    background: "#fff",
-                    border: "1px solid #e3ebf5",
-                    boxShadow: "0 8px 30px rgba(40,70,100,.05)",
+                    borderRadius: "20px",
+                    border: "1px solid #e9eef5",
                   }}
                 >
-                  <div className="mb-4">
+                  <h5 className="fw-bold text-dark mb-1">
+                    Send us a message
+                  </h5>
+
+                  <p className="text-secondary small mb-4">
+                    Fill in the details below and we'll get back to you.
+                  </p>
+
+                  {error && (
                     <div
-                      className="small fw-semibold mb-1"
-                      style={{ color: "#4c82bd" }}
+                      className="alert alert-danger d-flex align-items-center"
+                      role="alert"
+                      style={{ borderRadius: "12px" }}
                     >
-                      CONTACT SUPPORT
+                      {error}
                     </div>
-
-                    <h5
-                      className="fw-bold mb-1"
-                      style={{ color: "#203a59" }}
-                    >
-                      Send us a message
-                    </h5>
-
-                    <p className="text-secondary small mb-0">
-                      Fill in the details below and our team will get back to
-                      you.
-                    </p>
-                  </div>
+                  )}
 
                   <form onSubmit={handleSubmit}>
                     <div className="row g-3">
                       <div className="col-md-6">
-                        <label className="form-label small fw-semibold">
-                          Full Name
+                        <label className="form-label fw-semibold small">
+                          Full Name *
                         </label>
+
                         <input
                           type="text"
                           name="name"
@@ -380,19 +365,17 @@ export default function CustomerCarePage() {
                           onChange={handleChange}
                           className="form-control"
                           placeholder="Enter your name"
+                          maxLength={120}
                           required
-                          style={{
-                            borderRadius: 10,
-                            padding: "11px 13px",
-                            borderColor: "#dbe4ee",
-                          }}
+                          disabled={submitting}
                         />
                       </div>
 
                       <div className="col-md-6">
-                        <label className="form-label small fw-semibold">
-                          Email Address
+                        <label className="form-label fw-semibold small">
+                          Email *
                         </label>
+
                         <input
                           type="email"
                           name="email"
@@ -400,19 +383,17 @@ export default function CustomerCarePage() {
                           onChange={handleChange}
                           className="form-control"
                           placeholder="Enter your email"
+                          maxLength={255}
                           required
-                          style={{
-                            borderRadius: 10,
-                            padding: "11px 13px",
-                            borderColor: "#dbe4ee",
-                          }}
+                          disabled={submitting}
                         />
                       </div>
 
                       <div className="col-md-6">
-                        <label className="form-label small fw-semibold">
-                          Phone Number
+                        <label className="form-label fw-semibold small">
+                          Phone
                         </label>
+
                         <input
                           type="tel"
                           name="phone"
@@ -420,70 +401,86 @@ export default function CustomerCarePage() {
                           onChange={handleChange}
                           className="form-control"
                           placeholder="Enter your phone number"
-                          style={{
-                            borderRadius: 10,
-                            padding: "11px 13px",
-                            borderColor: "#dbe4ee",
-                          }}
+                          maxLength={30}
+                          disabled={submitting}
                         />
                       </div>
 
                       <div className="col-md-6">
-                        <label className="form-label small fw-semibold">
-                          Subject
+                        <label className="form-label fw-semibold small">
+                          Subject *
                         </label>
+
                         <input
                           type="text"
                           name="subject"
                           value={form.subject}
                           onChange={handleChange}
                           className="form-control"
-                          placeholder="How can we help?"
+                          placeholder="What do you need help with?"
+                          maxLength={200}
                           required
-                          style={{
-                            borderRadius: 10,
-                            padding: "11px 13px",
-                            borderColor: "#dbe4ee",
-                          }}
+                          disabled={submitting}
                         />
                       </div>
 
                       <div className="col-12">
-                        <label className="form-label small fw-semibold">
-                          Message
+                        <label className="form-label fw-semibold small">
+                          Message *
                         </label>
+
                         <textarea
                           name="message"
                           value={form.message}
                           onChange={handleChange}
                           className="form-control"
+                          placeholder="Describe your issue..."
                           rows={5}
-                          placeholder="Write your message here..."
+                          maxLength={5000}
                           required
-                          style={{
-                            resize: "vertical",
-                            borderRadius: 10,
-                            padding: "11px 13px",
-                            borderColor: "#dbe4ee",
-                          }}
+                          disabled={submitting}
                         />
                       </div>
 
-                      <div className="col-12 pt-2">
+                      <div className="col-12 d-flex justify-content-end gap-2 pt-2">
                         <button
-                          type="submit"
-                          className="btn d-inline-flex align-items-center gap-2 px-4 py-2"
+                          type="button"
+                          onClick={closeModal}
+                          disabled={submitting}
+                          className="btn btn-light px-4"
                           style={{
-                            background:
-                              "linear-gradient(135deg, #2563a6, #4d83c4)",
-                            color: "#fff",
-                            border: "none",
-                            borderRadius: 10,
-                            boxShadow: "0 7px 18px rgba(37,99,166,.2)",
+                            borderRadius: "12px",
+                            border: "1px solid #dfe6ef",
                           }}
                         >
-                          <Send size={17} />
-                          Send Message
+                          Close
+                        </button>
+
+                        <button
+                          type="submit"
+                          disabled={submitting}
+                          className="btn text-white px-4 d-flex align-items-center gap-2"
+                          style={{
+                            border: 0,
+                            borderRadius: "12px",
+                            background:
+                              "linear-gradient(135deg, #2563a6, #4d83c4)",
+                          }}
+                        >
+                          {submitting ? (
+                            <>
+                              <Loader2
+                                size={18}
+                                className="spinner-border"
+                              />
+                              Sending...
+                            </>
+                          ) : (
+                            <>
+                              <Send size={17} />
+                              Send Message
+                            </>
+                          )}
                         </button>
                       </div>
                     </div>
@@ -491,30 +488,7 @@ export default function CustomerCarePage() {
                 </div>
               </div>
             </div>
-          </div>
-
-          {/* Footer */}
-          <div
-            className="px-4 px-md-5 py-3 d-flex justify-content-end"
-            style={{
-              background: "#f8fafc",
-              borderTop: "1px solid #e5edf5",
-            }}
-          >
-            <button
-              type="button"
-              onClick={() => window.history.back()}
-              className="btn btn-sm px-4"
-              style={{
-                border: "1px solid #d5dfeb",
-                background: "#fff",
-                color: "#526070",
-                borderRadius: 9,
-              }}
-            >
-              Close
-            </button>
-          </div>
+          )}
         </div>
       </div>
     </div>

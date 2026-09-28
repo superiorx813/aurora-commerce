@@ -326,3 +326,20 @@ ADD COLUMN address VARCHAR(500) NULL AFTER gender,
 ADD COLUMN city VARCHAR(100) NULL AFTER address,
 ADD COLUMN state VARCHAR(100) NULL AFTER city,
 ADD COLUMN pincode VARCHAR(20) NULL AFTER state;
+
+CREATE TABLE IF NOT EXISTS customer_messages (
+  id INT NOT NULL AUTO_INCREMENT,
+  name VARCHAR(120) NOT NULL,
+  email VARCHAR(255) NOT NULL,
+  phone VARCHAR(30) NULL,
+  subject VARCHAR(200) NOT NULL,
+  message TEXT NOT NULL,
+  status ENUM('NEW', 'READ', 'RESOLVED') NOT NULL DEFAULT 'NEW',
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  INDEX idx_customer_messages_status (status),
+  INDEX idx_customer_messages_created_at (created_at)
+) ENGINE=InnoDB
+DEFAULT CHARSET=utf8mb4
+COLLATE=utf8mb4_unicode_ci;
