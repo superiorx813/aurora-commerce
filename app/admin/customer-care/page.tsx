@@ -54,33 +54,37 @@ function getStatusConfig(status: MessageStatus) {
       return {
         label: "New",
         icon: <Clock3 size={14} />,
-        background: "#fff4e5",
-        color: "#b45309",
-        border: "#fed7aa",
+        background: "#fff7e8",
+        color: "#b86b00",
+        border: "#ffdca8",
+        gradient: "linear-gradient(135deg, #fff8eb, #fff1d6)",
       };
 
     case "READ":
       return {
         label: "Read",
         icon: <Eye size={14} />,
-        background: "#eaf5ff",
-        color: "#1769aa",
-        border: "#bfdbfe",
+        background: "#edf5ff",
+        color: "#2563a8",
+        border: "#c9ddf8",
+        gradient: "linear-gradient(135deg, #eff7ff, #e4f0ff)",
       };
 
     case "RESOLVED":
       return {
         label: "Resolved",
         icon: <CheckCircle2 size={14} />,
-        background: "#ecfdf3",
-        color: "#15803d",
-        border: "#bbf7d0",
+        background: "#eafaf3",
+        color: "#168052",
+        border: "#bcebd3",
+        gradient: "linear-gradient(135deg, #edfcf5, #def7eb)",
       };
   }
 }
 
 export default function CustomerCarePage() {
   const [messages, setMessages] = useState<CustomerMessage[]>([]);
+
   const [stats, setStats] = useState<Stats>({
     total: 0,
     new: 0,
@@ -213,14 +217,17 @@ export default function CustomerCarePage() {
 
         return {
           ...current,
+
           new:
             current.new -
             (existing.status === "NEW" ? 1 : 0) +
             (status === "NEW" ? 1 : 0),
+
           read:
             current.read -
             (existing.status === "READ" ? 1 : 0) +
             (status === "READ" ? 1 : 0),
+
           resolved:
             current.resolved -
             (existing.status === "RESOLVED" ? 1 : 0) +
@@ -259,900 +266,641 @@ export default function CustomerCarePage() {
   }, [messages]);
 
   return (
-    <main
-      style={{
-        minHeight: "100vh",
-        background:
-          "linear-gradient(135deg, #f7f9fc 0%, #eef4f8 50%, #f8fafc 100%)",
-        padding: "30px",
-      }}
-    >
-      <div
-        style={{
-          maxWidth: "1500px",
-          margin: "0 auto",
-        }}
-      >
-        {/* HEADER */}
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "flex-start",
-            gap: "20px",
-            marginBottom: "28px",
-            flexWrap: "wrap",
-          }}
-        >
-          <div>
-            <div
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: "8px",
-                padding: "7px 13px",
-                borderRadius: "999px",
-                background: "#e8f4f2",
-                color: "#287d72",
-                fontSize: "13px",
-                fontWeight: 700,
-                marginBottom: "12px",
-              }}
-            >
-              <MessageCircle size={15} />
-              CUSTOMER SUPPORT
+    <main className="customer-care-page">
+      <div className="container-fluid px-3 px-lg-4 py-4">
+        <div className="customer-care-wrapper">
+
+          {/* =====================================================
+              HEADER
+          ====================================================== */}
+
+          <div className="care-hero mb-4">
+            <div className="care-hero-glow care-glow-one" />
+            <div className="care-hero-glow care-glow-two" />
+
+            <div className="row align-items-center g-4 position-relative">
+              <div className="col-lg-8">
+                <div className="care-eyebrow">
+                  <MessageCircle size={15} />
+                  CUSTOMER SUPPORT CENTER
+                </div>
+
+                <h1 className="care-title">
+                  Customer Care
+                </h1>
+
+                <p className="care-description">
+                  Manage customer enquiries, support requests and
+                  resolutions from one organized workspace.
+                </p>
+
+                <div className="care-hero-tags">
+                  <span>
+                    <span className="care-live-dot" />
+                    Support Center
+                  </span>
+
+                  <span>
+                    <MessageCircle size={14} />
+                    Customer Messages
+                  </span>
+                </div>
+              </div>
+
+              <div className="col-lg-4">
+                <div className="care-hero-side">
+                  <div className="care-hero-icon">
+                    <MessageCircle size={30} />
+                  </div>
+
+                  <div>
+                    <div className="care-hero-side-label">
+                      SUPPORT INBOX
+                    </div>
+
+                    <div className="care-hero-side-value">
+                      {stats.new} new
+                    </div>
+
+                    <div className="care-hero-side-text">
+                      messages waiting for attention
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* =====================================================
+              TOP BAR
+          ====================================================== */}
+
+          <div className="d-flex justify-content-between align-items-center flex-wrap gap-3 mb-4">
+            <div>
+              <div className="section-kicker">
+                SUPPORT OVERVIEW
+              </div>
+
+              <h2 className="section-heading mb-0">
+                Message Activity
+              </h2>
             </div>
 
-            <h1
-              style={{
-                margin: 0,
-                fontSize: "32px",
-                fontWeight: 800,
-                color: "#263746",
-                letterSpacing: "-0.5px",
-              }}
-            >
-              Customer Care
-            </h1>
-
-            <p
-              style={{
-                margin: "7px 0 0",
-                color: "#718096",
-                fontSize: "15px",
-              }}
-            >
-              Manage customer enquiries, support requests and resolutions.
-            </p>
-          </div>
-
-          <button
-            type="button"
-            onClick={() => loadMessages(true)}
-            disabled={refreshing}
-            style={{
-              border: "1px solid #dce5eb",
-              background: "#ffffff",
-              color: "#34495e",
-              borderRadius: "12px",
-              padding: "11px 17px",
-              display: "inline-flex",
-              alignItems: "center",
-              gap: "8px",
-              fontWeight: 700,
-              cursor: refreshing ? "not-allowed" : "pointer",
-              boxShadow: "0 4px 15px rgba(38,55,70,0.06)",
-            }}
-          >
-            <RefreshCw
-              size={17}
-              style={{
-                animation: refreshing ? "spin 1s linear infinite" : "none",
-              }}
-            />
-            Refresh
-          </button>
-        </div>
-
-        {/* STATS */}
-        <div
-          className="row g-3"
-          style={{
-            marginBottom: "24px",
-          }}
-        >
-          <StatCard
-            title="Total Messages"
-            value={stats.total}
-            icon={<MessageCircle size={21} />}
-            iconBackground="#edf3ff"
-            iconColor="#4169e1"
-          />
-
-          <StatCard
-            title="New"
-            value={stats.new}
-            icon={<Clock3 size={21} />}
-            iconBackground="#fff4e5"
-            iconColor="#d97706"
-          />
-
-          <StatCard
-            title="Read"
-            value={stats.read}
-            icon={<Eye size={21} />}
-            iconBackground="#eaf5ff"
-            iconColor="#1769aa"
-          />
-
-          <StatCard
-            title="Resolved"
-            value={stats.resolved}
-            icon={<CheckCircle2 size={21} />}
-            iconBackground="#ecfdf3"
-            iconColor="#15803d"
-          />
-        </div>
-
-        {/* ERROR */}
-        {error && (
-          <div
-            style={{
-              background: "#fff1f2",
-              border: "1px solid #fecdd3",
-              color: "#be123c",
-              borderRadius: "12px",
-              padding: "13px 16px",
-              marginBottom: "20px",
-              fontSize: "14px",
-              fontWeight: 600,
-            }}
-          >
-            {error}
-          </div>
-        )}
-
-        {/* CONTENT CARD */}
-        <div
-          style={{
-            background: "#ffffff",
-            border: "1px solid #e5ebf0",
-            borderRadius: "18px",
-            overflow: "hidden",
-            boxShadow: "0 10px 35px rgba(38,55,70,0.07)",
-          }}
-        >
-          {/* FILTER BAR */}
-          <div
-            style={{
-              padding: "18px",
-              borderBottom: "1px solid #edf1f4",
-              display: "flex",
-              alignItems: "center",
-              gap: "12px",
-              flexWrap: "wrap",
-            }}
-          >
-            <div
-              style={{
-                position: "relative",
-                flex: "1 1 320px",
-              }}
-            >
-              <Search
-                size={18}
-                style={{
-                  position: "absolute",
-                  left: "14px",
-                  top: "50%",
-                  transform: "translateY(-50%)",
-                  color: "#94a3b8",
-                }}
-              />
-
-              <input
-                type="text"
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                placeholder="Search name, email, subject or message..."
-                style={{
-                  width: "100%",
-                  height: "44px",
-                  border: "1px solid #dce4ea",
-                  borderRadius: "11px",
-                  padding: "0 14px 0 42px",
-                  outline: "none",
-                  color: "#334155",
-                  background: "#fbfcfd",
-                  fontSize: "14px",
-                }}
-              />
-            </div>
-
-            <select
-              value={statusFilter}
-              onChange={(event) => setStatusFilter(event.target.value)}
-              style={{
-                height: "44px",
-                minWidth: "155px",
-                border: "1px solid #dce4ea",
-                borderRadius: "11px",
-                padding: "0 13px",
-                outline: "none",
-                background: "#fbfcfd",
-                color: "#334155",
-                fontWeight: 600,
-                cursor: "pointer",
-              }}
-            >
-              <option value="ALL">All Status</option>
-              <option value="NEW">New</option>
-              <option value="READ">Read</option>
-              <option value="RESOLVED">Resolved</option>
-            </select>
-          </div>
-
-          {/* TABLE */}
-          {loading ? (
-            <div
-              style={{
-                padding: "70px 20px",
-                textAlign: "center",
-                color: "#718096",
-              }}
+            <button
+              type="button"
+              onClick={() => loadMessages(true)}
+              disabled={refreshing}
+              className="care-refresh-button"
             >
               <RefreshCw
-                size={28}
-                style={{
-                  animation: "spin 1s linear infinite",
-                  marginBottom: "10px",
-                }}
+                size={17}
+                className={refreshing ? "spin-animation" : ""}
               />
 
-              <div
-                style={{
-                  fontWeight: 700,
-                }}
-              >
-                Loading customer messages...
+              {refreshing ? "Refreshing..." : "Refresh Inbox"}
+            </button>
+          </div>
+
+          {/* =====================================================
+              STATS
+          ====================================================== */}
+
+          <div className="row g-3 mb-4">
+            <StatCard
+              title="Total Messages"
+              value={stats.total}
+              description="All customer enquiries"
+              icon={<MessageCircle size={21} />}
+              iconBackground="#edf1ff"
+              iconColor="#4f46c5"
+              accent="#6658d3"
+            />
+
+            <StatCard
+              title="New"
+              value={stats.new}
+              description="Needs attention"
+              icon={<Clock3 size={21} />}
+              iconBackground="#fff3df"
+              iconColor="#c27608"
+              accent="#e49a32"
+            />
+
+            <StatCard
+              title="Read"
+              value={stats.read}
+              description="Currently reviewed"
+              icon={<Eye size={21} />}
+              iconBackground="#e8f3ff"
+              iconColor="#2474b7"
+              accent="#3c91d2"
+            />
+
+            <StatCard
+              title="Resolved"
+              value={stats.resolved}
+              description="Successfully handled"
+              icon={<CheckCircle2 size={21} />}
+              iconBackground="#e8f9f1"
+              iconColor="#168052"
+              accent="#31a873"
+            />
+          </div>
+
+          {/* =====================================================
+              ERROR
+          ====================================================== */}
+
+          {error && (
+            <div className="care-error mb-4">
+              <div className="care-error-icon">
+                !
               </div>
-            </div>
-          ) : visibleMessages.length === 0 ? (
-            <div
-              style={{
-                padding: "75px 20px",
-                textAlign: "center",
-              }}
-            >
-              <div
-                style={{
-                  width: "64px",
-                  height: "64px",
-                  borderRadius: "18px",
-                  background: "#eef4f7",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  margin: "0 auto 16px",
-                  color: "#5d7a88",
-                }}
-              >
-                <MessageCircle size={28} />
+
+              <div>
+                <div className="care-error-title">
+                  Something went wrong
+                </div>
+
+                <div className="care-error-text">
+                  {error}
+                </div>
               </div>
-
-              <h3
-                style={{
-                  margin: "0 0 6px",
-                  color: "#2a5796",
-                  fontSize: "18px",
-                }}
-              >
-                No messages found
-              </h3>
-
-              <p
-                style={{
-                  margin: 0,
-                  color: "#94a3b8",
-                  fontSize: "14px",
-                }}
-              >
-                Customer care messages matching your filters will appear here.
-              </p>
-            </div>
-          ) : (
-            <div
-              style={{
-                overflowX: "auto",
-              }}
-            >
-              <table
-                style={{
-                  width: "100%",
-                  borderCollapse: "collapse",
-                  minWidth: "1000px",
-                }}
-              >
-                <thead>
-                  <tr
-                    style={{
-                      background: "#f8fafc",
-                    }}
-                  >
-                    <th style={thStyle}>CUSTOMER</th>
-                    <th style={thStyle}>SUBJECT</th>
-                    <th style={thStyle}>CONTACT</th>
-                    <th style={thStyle}>STATUS</th>
-                    <th style={thStyle}>SUBMITTED</th>
-                    <th
-                      style={{
-                        ...thStyle,
-                        textAlign: "center",
-                      }}
-                    >
-                      ACTION
-                    </th>
-                  </tr>
-                </thead>
-
-                <tbody>
-                  {visibleMessages.map((item) => {
-                    const status = getStatusConfig(item.status);
-
-                    return (
-                      <tr
-                        key={item.id}
-                        style={{
-                          borderTop: "1px solid #edf1f4",
-                          transition: "background 0.2s ease",
-                        }}
-                        onMouseEnter={(event) => {
-                          event.currentTarget.style.background = "#fafcfd";
-                        }}
-                        onMouseLeave={(event) => {
-                          event.currentTarget.style.background = "#ffffff";
-                        }}
-                      >
-                        <td style={tdStyle}>
-                          <div
-                            style={{
-                              display: "flex",
-                              alignItems: "center",
-                              gap: "11px",
-                            }}
-                          >
-                            <div
-                              style={{
-                                width: "39px",
-                                height: "39px",
-                                borderRadius: "12px",
-                                background:
-                                  "linear-gradient(135deg, #e5f5f2, #d9edf0)",
-                                display: "flex",
-                                alignItems: "center",
-                                justifyContent: "center",
-                                color: "#367d79",
-                                fontWeight: 800,
-                                flexShrink: 0,
-                              }}
-                            >
-                              {item.name.charAt(0).toUpperCase()}
-                            </div>
-
-                            <div>
-                              <div
-                                style={{
-                                  fontWeight: 750,
-                                  color: "#263746",
-                                  marginBottom: "2px",
-                                }}
-                              >
-                                {item.name}
-                              </div>
-
-                              <div
-                                style={{
-                                  color: "#94a3b8",
-                                  fontSize: "12px",
-                                }}
-                              >
-                                ID #{item.id}
-                              </div>
-                            </div>
-                          </div>
-                        </td>
-
-                        <td style={tdStyle}>
-                          <div
-                            style={{
-                              fontWeight: 700,
-                              color: "#34495e",
-                              maxWidth: "260px",
-                              whiteSpace: "nowrap",
-                              overflow: "hidden",
-                              textOverflow: "ellipsis",
-                            }}
-                            title={item.subject}
-                          >
-                            {item.subject}
-                          </div>
-
-                          <div
-                            style={{
-                              color: "#94a3b8",
-                              fontSize: "12px",
-                              maxWidth: "260px",
-                              whiteSpace: "nowrap",
-                              overflow: "hidden",
-                              textOverflow: "ellipsis",
-                              marginTop: "3px",
-                            }}
-                          >
-                            {item.message}
-                          </div>
-                        </td>
-
-                        <td style={tdStyle}>
-                          <div
-                            style={{
-                              display: "flex",
-                              alignItems: "center",
-                              gap: "6px",
-                              color: "#526273",
-                              fontSize: "13px",
-                            }}
-                          >
-                            <Mail size={14} />
-                            {item.email}
-                          </div>
-
-                          {item.phone && (
-                            <div
-                              style={{
-                                display: "flex",
-                                alignItems: "center",
-                                gap: "6px",
-                                color: "#94a3b8",
-                                fontSize: "12px",
-                                marginTop: "5px",
-                              }}
-                            >
-                              <Phone size={13} />
-                              {item.phone}
-                            </div>
-                          )}
-                        </td>
-
-                        <td style={tdStyle}>
-                          <span
-                            style={{
-                              display: "inline-flex",
-                              alignItems: "center",
-                              gap: "6px",
-                              padding: "6px 10px",
-                              borderRadius: "999px",
-                              background: status.background,
-                              color: status.color,
-                              border: `1px solid ${status.border}`,
-                              fontSize: "12px",
-                              fontWeight: 800,
-                            }}
-                          >
-                            {status.icon}
-                            {status.label}
-                          </span>
-                        </td>
-
-                        <td
-                          style={{
-                            ...tdStyle,
-                            color: "#64748b",
-                            fontSize: "13px",
-                            whiteSpace: "nowrap",
-                          }}
-                        >
-                          {formatDate(item.created_at)}
-                        </td>
-
-                        <td
-                          style={{
-                            ...tdStyle,
-                            textAlign: "center",
-                          }}
-                        >
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setSelectedMessage(item);
-
-                              if (item.status === "NEW") {
-                                updateStatus(item.id, "READ");
-                              }
-                            }}
-                            style={{
-                              border: "1px solid #dce5eb",
-                              background: "#ffffff",
-                              color: "#356d78",
-                              borderRadius: "9px",
-                              padding: "8px 12px",
-                              display: "inline-flex",
-                              alignItems: "center",
-                              gap: "6px",
-                              fontWeight: 750,
-                              fontSize: "12px",
-                              cursor: "pointer",
-                            }}
-                          >
-                            <Eye size={15} />
-                            View
-                          </button>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
             </div>
           )}
+
+          {/* =====================================================
+              MAIN CONTENT
+          ====================================================== */}
+
+          <div className="care-content-card">
+
+            {/* FILTER HEADER */}
+
+            <div className="care-filter-header">
+              <div>
+                <div className="section-kicker">
+                  CUSTOMER ENQUIRIES
+                </div>
+
+                <h3 className="care-table-title">
+                  Support Messages
+                </h3>
+
+                <p className="care-table-subtitle">
+                  Review customer messages and manage their current status.
+                </p>
+              </div>
+
+              <div className="care-inbox-count">
+                <span className="care-count-number">
+                  {messages.length}
+                </span>
+
+                <span className="care-count-label">
+                  visible messages
+                </span>
+              </div>
+            </div>
+
+            {/* FILTER BAR */}
+
+            <div className="care-filter-bar">
+              <div className="care-search-wrapper">
+                <Search size={18} />
+
+                <input
+                  type="text"
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                  placeholder="Search name, email, subject or message..."
+                />
+
+                {search && (
+                  <button
+                    type="button"
+                    onClick={() => setSearch("")}
+                    className="care-search-clear"
+                  >
+                    <X size={15} />
+                  </button>
+                )}
+              </div>
+
+              <div className="care-status-select-wrapper">
+                <select
+                  value={statusFilter}
+                  onChange={(event) =>
+                    setStatusFilter(event.target.value)
+                  }
+                  className="care-status-select"
+                >
+                  <option value="ALL">All Status</option>
+                  <option value="NEW">New</option>
+                  <option value="READ">Read</option>
+                  <option value="RESOLVED">Resolved</option>
+                </select>
+              </div>
+            </div>
+
+            {/* TABLE */}
+
+            {loading ? (
+              <div className="care-loading">
+                <div className="care-loading-icon">
+                  <RefreshCw
+                    size={28}
+                    className="spin-animation"
+                  />
+                </div>
+
+                <h4>
+                  Loading customer messages...
+                </h4>
+
+                <p>
+                  Please wait while we load the support inbox.
+                </p>
+              </div>
+            ) : visibleMessages.length === 0 ? (
+              <div className="care-empty">
+                <div className="care-empty-icon">
+                  <MessageCircle size={30} />
+                </div>
+
+                <h3>
+                  No messages found
+                </h3>
+
+                <p>
+                  Customer care messages matching your filters
+                  will appear here.
+                </p>
+              </div>
+            ) : (
+              <div className="table-responsive">
+                <table className="care-table">
+                  <thead>
+                    <tr>
+                      <th>CUSTOMER</th>
+                      <th>SUBJECT</th>
+                      <th>CONTACT</th>
+                      <th>STATUS</th>
+                      <th>SUBMITTED</th>
+                      <th className="text-center">ACTION</th>
+                    </tr>
+                  </thead>
+
+                  <tbody>
+                    {visibleMessages.map((item) => {
+                      const status = getStatusConfig(item.status);
+
+                      return (
+                        <tr key={item.id}>
+                          {/* CUSTOMER */}
+
+                          <td>
+                            <div className="care-customer">
+                              <div className="care-avatar">
+                                {item.name
+                                  .charAt(0)
+                                  .toUpperCase()}
+                              </div>
+
+                              <div className="care-customer-info">
+                                <div className="care-customer-name">
+                                  {item.name}
+                                </div>
+
+                                <div className="care-customer-id">
+                                  Customer ID #{item.id}
+                                </div>
+                              </div>
+                            </div>
+                          </td>
+
+                          {/* SUBJECT */}
+
+                          <td>
+                            <div
+                              className="care-subject"
+                              title={item.subject}
+                            >
+                              {item.subject}
+                            </div>
+
+                            <div className="care-message-preview">
+                              {item.message}
+                            </div>
+                          </td>
+
+                          {/* CONTACT */}
+
+                          <td>
+                            <div className="care-contact email">
+                              <span className="care-contact-icon">
+                                <Mail size={13} />
+                              </span>
+
+                              {item.email}
+                            </div>
+
+                            {item.phone && (
+                              <div className="care-contact phone">
+                                <span className="care-contact-icon">
+                                  <Phone size={13} />
+                                </span>
+
+                                {item.phone}
+                              </div>
+                            )}
+                          </td>
+
+                          {/* STATUS */}
+
+                          <td>
+                            <span
+                              className="care-status-pill"
+                              style={{
+                                background: status.background,
+                                color: status.color,
+                                borderColor: status.border,
+                              }}
+                            >
+                              {status.icon}
+                              {status.label}
+                            </span>
+                          </td>
+
+                          {/* DATE */}
+
+                          <td>
+                            <div className="care-date">
+                              {formatDate(item.created_at)}
+                            </div>
+                          </td>
+
+                          {/* ACTION */}
+
+                          <td className="text-center">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setSelectedMessage(item);
+
+                                if (item.status === "NEW") {
+                                  updateStatus(item.id, "READ");
+                                }
+                              }}
+                              className="care-view-button"
+                            >
+                              <Eye size={15} />
+                              View
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
-      {/* MESSAGE MODAL */}
+      {/* =========================================================
+          MESSAGE MODAL
+      ========================================================== */}
+
       {selectedMessage && (
         <div
+          className="care-modal-backdrop"
           onClick={() => setSelectedMessage(null)}
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(20, 35, 45, 0.55)",
-            zIndex: 9999,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            padding: "20px",
-            backdropFilter: "blur(5px)",
-          }}
         >
           <div
+            className="care-modal"
             onClick={(event) => event.stopPropagation()}
-            style={{
-              width: "100%",
-              maxWidth: "720px",
-              maxHeight: "90vh",
-              overflowY: "auto",
-              background: "#ffffff",
-              borderRadius: "20px",
-              boxShadow: "0 25px 70px rgba(0,0,0,0.2)",
-            }}
           >
+
             {/* MODAL HEADER */}
-            <div
-              style={{
-                padding: "22px 24px",
-                borderBottom: "1px solid #edf1f4",
-                display: "flex",
-                alignItems: "flex-start",
-                justifyContent: "space-between",
-                gap: "15px",
-              }}
-            >
+
+            <div className="care-modal-header">
               <div>
-                <div
-                  style={{
-                    fontSize: "12px",
-                    fontWeight: 800,
-                    color: "#71909a",
-                    letterSpacing: "0.8px",
-                    marginBottom: "5px",
-                  }}
-                >
+                <div className="care-modal-label">
                   CUSTOMER MESSAGE #{selectedMessage.id}
                 </div>
 
-                <h2
-                  style={{
-                    margin: 0,
-                    color: "#263746",
-                    fontSize: "22px",
-                    fontWeight: 800,
-                  }}
-                >
+                <h2>
                   {selectedMessage.subject}
                 </h2>
+
+                <div className="care-modal-date">
+                  Received {formatDate(selectedMessage.created_at)}
+                </div>
               </div>
 
               <button
                 type="button"
                 onClick={() => setSelectedMessage(null)}
-                style={{
-                  width: "36px",
-                  height: "36px",
-                  borderRadius: "10px",
-                  border: "1px solid #e2e8f0",
-                  background: "#f8fafc",
-                  color: "#64748b",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  cursor: "pointer",
-                  flexShrink: 0,
-                }}
+                className="care-modal-close"
               >
                 <X size={18} />
               </button>
             </div>
 
-            <div
-              style={{
-                padding: "24px",
-              }}
-            >
+            {/* MODAL BODY */}
+
+            <div className="care-modal-body">
+
               {/* CUSTOMER INFO */}
-              <div
-                style={{
-                  background: "#f8fafc",
-                  border: "1px solid #edf1f4",
-                  borderRadius: "14px",
-                  padding: "17px",
-                  marginBottom: "20px",
-                }}
-              >
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "12px",
-                    marginBottom: "15px",
-                  }}
-                >
-                  <div
-                    style={{
-                      width: "45px",
-                      height: "45px",
-                      borderRadius: "14px",
-                      background:
-                        "linear-gradient(135deg, #dff3ef, #d9eaf0)",
-                      color: "#367d79",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      fontSize: "18px",
-                      fontWeight: 800,
-                    }}
-                  >
-                    {selectedMessage.name.charAt(0).toUpperCase()}
+
+              <div className="care-profile-card">
+                <div className="care-profile-top">
+                  <div className="care-profile-avatar">
+                    {selectedMessage.name
+                      .charAt(0)
+                      .toUpperCase()}
                   </div>
 
-                  <div>
-                    <div
-                      style={{
-                        fontWeight: 800,
-                        color: "#263746",
-                      }}
-                    >
+                  <div className="care-profile-main">
+                    <div className="care-profile-name">
                       {selectedMessage.name}
                     </div>
 
-                    <div
-                      style={{
-                        color: "#94a3b8",
-                        fontSize: "12px",
-                        marginTop: "2px",
-                      }}
-                    >
-                      Submitted {formatDate(selectedMessage.created_at)}
+                    <div className="care-profile-role">
+                      Customer
                     </div>
+                  </div>
+
+                  <div className="care-profile-status">
+                    {(() => {
+                      const config = getStatusConfig(
+                        selectedMessage.status
+                      );
+
+                      return (
+                        <span
+                          className="care-status-pill"
+                          style={{
+                            background: config.background,
+                            color: config.color,
+                            borderColor: config.border,
+                          }}
+                        >
+                          {config.icon}
+                          {config.label}
+                        </span>
+                      );
+                    })()}
                   </div>
                 </div>
 
-                <div
-                  className="row g-3"
-                  style={{
-                    fontSize: "13px",
-                  }}
-                >
+                <div className="row g-3 mt-1">
                   <div className="col-md-6">
-                    <div
-                      style={{
-                        color: "#94a3b8",
-                        marginBottom: "4px",
-                      }}
-                    >
-                      Email
-                    </div>
+                    <div className="care-detail-box">
+                      <div className="care-detail-icon">
+                        <Mail size={15} />
+                      </div>
 
-                    <a
-                      href={`mailto:${selectedMessage.email}`}
-                      style={{
-                        color: "#326d79",
-                        fontWeight: 700,
-                        textDecoration: "none",
-                      }}
-                    >
-                      {selectedMessage.email}
-                    </a>
+                      <div>
+                        <div className="care-detail-label">
+                          EMAIL
+                        </div>
+
+                        <a
+                          href={`mailto:${selectedMessage.email}`}
+                          className="care-detail-value"
+                        >
+                          {selectedMessage.email}
+                        </a>
+                      </div>
+                    </div>
                   </div>
 
                   <div className="col-md-6">
-                    <div
-                      style={{
-                        color: "#94a3b8",
-                        marginBottom: "4px",
-                      }}
-                    >
-                      Phone
-                    </div>
+                    <div className="care-detail-box">
+                      <div className="care-detail-icon">
+                        <Phone size={15} />
+                      </div>
 
-                    {selectedMessage.phone ? (
-                      <a
-                        href={`tel:${selectedMessage.phone}`}
-                        style={{
-                          color: "#326d79",
-                          fontWeight: 700,
-                          textDecoration: "none",
-                        }}
-                      >
-                        {selectedMessage.phone}
-                      </a>
-                    ) : (
-                      <span
-                        style={{
-                          color: "#94a3b8",
-                        }}
-                      >
-                        Not provided
-                      </span>
-                    )}
+                      <div>
+                        <div className="care-detail-label">
+                          PHONE
+                        </div>
+
+                        {selectedMessage.phone ? (
+                          <a
+                            href={`tel:${selectedMessage.phone}`}
+                            className="care-detail-value"
+                          >
+                            {selectedMessage.phone}
+                          </a>
+                        ) : (
+                          <span className="care-detail-muted">
+                            Not provided
+                          </span>
+                        )}
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
 
               {/* MESSAGE */}
-              <div
-                style={{
-                  marginBottom: "23px",
-                }}
-              >
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "7px",
-                    color: "#34495e",
-                    fontWeight: 800,
-                    fontSize: "14px",
-                    marginBottom: "9px",
-                  }}
-                >
-                  <MessageCircle size={17} />
+
+              <div className="care-message-section">
+                <div className="care-section-title">
+                  <span className="care-section-icon">
+                    <MessageCircle size={16} />
+                  </span>
+
                   Customer Message
                 </div>
 
-                <div
-                  style={{
-                    background: "#fbfcfd",
-                    border: "1px solid #e7edf1",
-                    borderRadius: "13px",
-                    padding: "17px",
-                    color: "#526273",
-                    fontSize: "14px",
-                    lineHeight: 1.7,
-                    whiteSpace: "pre-wrap",
-                  }}
-                >
+                <div className="care-message-box">
                   {selectedMessage.message}
                 </div>
               </div>
 
               {/* STATUS */}
-              <div>
-                <div
-                  style={{
-                    color: "#34495e",
-                    fontWeight: 800,
-                    fontSize: "14px",
-                    marginBottom: "10px",
-                  }}
-                >
+
+              <div className="care-status-section">
+                <div className="care-section-title">
+                  <span className="care-section-icon">
+                    <CheckCircle2 size={16} />
+                  </span>
+
                   Update Status
                 </div>
 
-                <div
-                  style={{
-                    display: "flex",
-                    gap: "9px",
-                    flexWrap: "wrap",
-                  }}
-                >
-                  {(["NEW", "READ", "RESOLVED"] as MessageStatus[]).map(
-                    (status) => {
-                      const config = getStatusConfig(status);
-                      const active = selectedMessage.status === status;
+                <div className="care-status-actions">
+                  {(
+                    ["NEW", "READ", "RESOLVED"] as MessageStatus[]
+                  ).map((status) => {
+                    const config = getStatusConfig(status);
+                    const active =
+                      selectedMessage.status === status;
 
-                      return (
-                        <button
-                          key={status}
-                          type="button"
-                          disabled={
-                            updatingId === selectedMessage.id || active
-                          }
-                          onClick={() =>
-                            updateStatus(selectedMessage.id, status)
-                          }
-                          style={{
-                            border: `1px solid ${
-                              active ? config.border : "#dce5eb"
-                            }`,
-                            background: active
-                              ? config.background
-                              : "#ffffff",
-                            color: active ? config.color : "#64748b",
-                            borderRadius: "10px",
-                            padding: "9px 13px",
-                            display: "inline-flex",
-                            alignItems: "center",
-                            gap: "7px",
-                            fontWeight: 750,
-                            cursor:
-                              active || updatingId === selectedMessage.id
-                                ? "default"
-                                : "pointer",
-                          }}
-                        >
-                          {config.icon}
-                          {config.label}
-                        </button>
-                      );
-                    }
-                  )}
+                    return (
+                      <button
+                        key={status}
+                        type="button"
+                        disabled={
+                          updatingId === selectedMessage.id ||
+                          active
+                        }
+                        onClick={() =>
+                          updateStatus(
+                            selectedMessage.id,
+                            status
+                          )
+                        }
+                        className="care-status-action"
+                        style={{
+                          borderColor: active
+                            ? config.border
+                            : "#dce5eb",
+                          background: active
+                            ? config.gradient
+                            : "#ffffff",
+                          color: active
+                            ? config.color
+                            : "#64748b",
+                        }}
+                      >
+                        {config.icon}
+
+                        {config.label}
+
+                        {active && (
+                          <span className="care-active-check">
+                            <CheckCircle2 size={13} />
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
             </div>
 
             {/* MODAL FOOTER */}
-            <div
-              style={{
-                borderTop: "1px solid #edf1f4",
-                padding: "16px 24px",
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                gap: "12px",
-                flexWrap: "wrap",
-              }}
-            >
-              <span
-                style={{
-                  color: "#94a3b8",
-                  fontSize: "12px",
-                }}
-              >
-                Last updated: {formatDate(selectedMessage.updated_at)}
-              </span>
 
-              <div
-                style={{
-                  display: "flex",
-                  gap: "8px",
-                }}
-              >
+            <div className="care-modal-footer">
+              <div className="care-updated">
+                Last updated:
+                <strong>
+                  {formatDate(selectedMessage.updated_at)}
+                </strong>
+              </div>
+
+              <div className="care-footer-actions">
                 <a
                   href={`mailto:${selectedMessage.email}?subject=Re: ${encodeURIComponent(
                     selectedMessage.subject
                   )}`}
-                  style={{
-                    textDecoration: "none",
-                    border: "1px solid #dce5eb",
-                    background: "#ffffff",
-                    color: "#356d78",
-                    borderRadius: "10px",
-                    padding: "9px 13px",
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: "7px",
-                    fontSize: "13px",
-                    fontWeight: 750,
-                  }}
+                  className="care-email-button"
                 >
                   <Mail size={15} />
                   Reply by Email
@@ -1161,16 +909,7 @@ export default function CustomerCarePage() {
                 <button
                   type="button"
                   onClick={() => setSelectedMessage(null)}
-                  style={{
-                    border: "none",
-                    background: "#356d78",
-                    color: "#ffffff",
-                    borderRadius: "10px",
-                    padding: "9px 15px",
-                    fontSize: "13px",
-                    fontWeight: 750,
-                    cursor: "pointer",
-                  }}
+                  className="care-close-button"
                 >
                   Close
                 </button>
@@ -1180,7 +919,1063 @@ export default function CustomerCarePage() {
         </div>
       )}
 
+      {/* =========================================================
+          STYLES
+      ========================================================== */}
+
       <style jsx global>{`
+        .customer-care-page {
+          min-height: 100vh;
+          background:
+            radial-gradient(
+              circle at 8% 10%,
+              rgba(73, 181, 164, 0.09),
+              transparent 25%
+            ),
+            radial-gradient(
+              circle at 90% 8%,
+              rgba(91, 83, 190, 0.08),
+              transparent 28%
+            ),
+            linear-gradient(
+              135deg,
+              #f7fafc 0%,
+              #f1f6f8 48%,
+              #f8fafc 100%
+            );
+          color: #263746;
+        }
+
+        .customer-care-wrapper {
+          max-width: 1550px;
+          margin: 0 auto;
+        }
+
+        /* =========================
+           HERO
+        ========================= */
+
+        .care-hero {
+          position: relative;
+          overflow: hidden;
+          border-radius: 24px;
+          padding: 32px 35px;
+          background:
+            linear-gradient(
+              125deg,
+              #294f5c 0%,
+              #326d78 42%,
+              #4b7185 72%,
+              #555b91 100%
+            );
+          box-shadow:
+            0 20px 50px rgba(38, 68, 82, 0.16),
+            inset 0 1px 0 rgba(255, 255, 255, 0.12);
+          color: #ffffff;
+        }
+
+        .care-hero-glow {
+          position: absolute;
+          border-radius: 50%;
+          pointer-events: none;
+        }
+
+        .care-glow-one {
+          width: 280px;
+          height: 280px;
+          right: -70px;
+          top: -140px;
+          background: rgba(112, 220, 197, 0.18);
+        }
+
+        .care-glow-two {
+          width: 220px;
+          height: 220px;
+          left: 38%;
+          bottom: -150px;
+          background: rgba(145, 139, 255, 0.16);
+        }
+
+        .care-eyebrow {
+          display: inline-flex;
+          align-items: center;
+          gap: 8px;
+          padding: 7px 12px;
+          border-radius: 999px;
+          background: rgba(255, 255, 255, 0.12);
+          border: 1px solid rgba(255, 255, 255, 0.14);
+          color: #d8fff7;
+          font-size: 11px;
+          font-weight: 800;
+          letter-spacing: 1px;
+          margin-bottom: 14px;
+        }
+
+        .care-title {
+          margin: 0;
+          font-size: clamp(30px, 4vw, 42px);
+          font-weight: 850;
+          letter-spacing: -1.3px;
+        }
+
+        .care-description {
+          max-width: 650px;
+          margin: 9px 0 18px;
+          color: rgba(255, 255, 255, 0.75);
+          font-size: 14px;
+          line-height: 1.7;
+        }
+
+        .care-hero-tags {
+          display: flex;
+          align-items: center;
+          flex-wrap: wrap;
+          gap: 9px;
+        }
+
+        .care-hero-tags span {
+          display: inline-flex;
+          align-items: center;
+          gap: 7px;
+          padding: 7px 11px;
+          border-radius: 9px;
+          background: rgba(255, 255, 255, 0.1);
+          border: 1px solid rgba(255, 255, 255, 0.11);
+          color: rgba(255, 255, 255, 0.84);
+          font-size: 11px;
+          font-weight: 700;
+        }
+
+        .care-live-dot {
+          width: 7px;
+          height: 7px;
+          border-radius: 50%;
+          background: #72e0b9;
+          box-shadow: 0 0 0 4px rgba(114, 224, 185, 0.12);
+        }
+
+        .care-hero-side {
+          position: relative;
+          display: flex;
+          align-items: center;
+          gap: 15px;
+          padding: 20px;
+          border-radius: 18px;
+          background: rgba(255, 255, 255, 0.09);
+          border: 1px solid rgba(255, 255, 255, 0.12);
+          backdrop-filter: blur(12px);
+        }
+
+        .care-hero-icon {
+          width: 60px;
+          height: 60px;
+          flex-shrink: 0;
+          border-radius: 17px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          background: rgba(255, 255, 255, 0.14);
+          color: #a5f3df;
+        }
+
+        .care-hero-side-label {
+          font-size: 10px;
+          font-weight: 800;
+          letter-spacing: 1.1px;
+          color: rgba(255, 255, 255, 0.58);
+        }
+
+        .care-hero-side-value {
+          margin-top: 3px;
+          font-size: 24px;
+          font-weight: 850;
+        }
+
+        .care-hero-side-text {
+          margin-top: 2px;
+          font-size: 11px;
+          color: rgba(255, 255, 255, 0.6);
+        }
+
+        /* =========================
+           SECTION HEADINGS
+        ========================= */
+
+        .section-kicker {
+          color: #6d8791;
+          font-size: 10px;
+          font-weight: 850;
+          letter-spacing: 1.2px;
+          margin-bottom: 4px;
+        }
+
+        .section-heading {
+          color: #263746;
+          font-size: 21px;
+          font-weight: 850;
+        }
+
+        /* =========================
+           REFRESH
+        ========================= */
+
+        .care-refresh-button {
+          border: 1px solid #d8e3e7;
+          background: #ffffff;
+          color: #356d78;
+          border-radius: 12px;
+          padding: 10px 15px;
+          display: inline-flex;
+          align-items: center;
+          gap: 8px;
+          font-size: 13px;
+          font-weight: 750;
+          cursor: pointer;
+          box-shadow: 0 5px 18px rgba(38, 55, 70, 0.05);
+          transition: all 0.2s ease;
+        }
+
+        .care-refresh-button:hover:not(:disabled) {
+          transform: translateY(-2px);
+          border-color: #619e5a;
+          box-shadow: 0 9px 24px rgba(38, 55, 70, 0.09);
+        }
+
+        .care-refresh-button:disabled {
+          opacity: 0.65;
+          cursor: not-allowed;
+        }
+
+        /* =========================
+           STAT CARDS
+        ========================= */
+
+        .care-stat-card {
+          position: relative;
+          overflow: hidden;
+          height: 100%;
+          padding: 20px;
+          background: #ffffff;
+          border: 1px solid #e4ecef;
+          border-radius: 17px;
+          box-shadow: 0 7px 25px rgba(38, 55, 70, 0.05);
+          transition:
+            transform 0.25s ease,
+            box-shadow 0.25s ease,
+            border-color 0.25s ease;
+        }
+
+        .care-stat-card:hover {
+          transform: translateY(-4px);
+          box-shadow: 0 15px 35px rgba(38, 55, 70, 0.09);
+          border-color: #11a419;
+        }
+
+        .care-stat-accent {
+          position: absolute;
+          top: 0;
+          left: 0;
+          width: 100%;
+          height: 3px;
+        }
+
+        .care-stat-label {
+          color: #7c8c99;
+          font-size: 12px;
+          font-weight: 750;
+          margin-bottom: 7px;
+        }
+
+        .care-stat-value {
+          color: #263746;
+          font-size: 30px;
+          line-height: 1;
+          font-weight: 850;
+        }
+
+        .care-stat-description {
+          margin-top: 7px;
+          color: #a0adb7;
+          font-size: 11px;
+        }
+
+        .care-stat-icon {
+          width: 49px;
+          height: 49px;
+          border-radius: 15px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          flex-shrink: 0;
+        }
+
+        /* =========================
+           ERROR
+        ========================= */
+
+        .care-error {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          padding: 14px 16px;
+          border: 1px solid #fecdd3;
+          background: #fff5f6;
+          color: #be123c;
+          border-radius: 13px;
+        }
+
+        .care-error-icon {
+          width: 32px;
+          height: 32px;
+          border-radius: 10px;
+          background: #ffe1e6;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-weight: 850;
+        }
+
+        .care-error-title {
+          font-size: 13px;
+          font-weight: 800;
+        }
+
+        .care-error-text {
+          margin-top: 2px;
+          font-size: 12px;
+        }
+
+        /* =========================
+           CONTENT CARD
+        ========================= */
+
+        .care-content-card {
+          overflow: hidden;
+          background: #ffffff;
+          border: 1px solid #e3ebef;
+          border-radius: 20px;
+          box-shadow: 0 12px 38px rgba(38, 55, 70, 0.065);
+        }
+
+        .care-filter-header {
+          padding: 21px 23px;
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          gap: 20px;
+          border-bottom: 1px solid #edf2f4;
+        }
+
+        .care-table-title {
+          margin: 0;
+          color: #263746;
+          font-size: 20px;
+          font-weight: 850;
+        }
+
+        .care-table-subtitle {
+          margin: 5px 0 0;
+          color: #0f0f10;
+          font-size: 12px;
+        }
+
+        .care-inbox-count {
+          min-width: 105px;
+          padding: 11px 14px;
+          text-align: center;
+          border-radius: 12px;
+          background: #f4f8f9;
+          border: 1px solid #e4edef;
+        }
+
+        .care-count-number {
+          display: block;
+          color: #356d78;
+          font-size: 20px;
+          font-weight: 850;
+        }
+
+        .care-count-label {
+          display: block;
+          color: #93a1aa;
+          font-size: 10px;
+          font-weight: 700;
+          margin-top: 2px;
+        }
+
+        /* =========================
+           FILTER BAR
+        ========================= */
+
+        .care-filter-bar {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          padding: 16px 18px;
+          background: #fbfcfd;
+          border-bottom: 1px solid #edf2f4;
+        }
+
+        .care-search-wrapper {
+          position: relative;
+          flex: 1 1 auto;
+        }
+
+        .care-search-wrapper > svg {
+          position: absolute;
+          left: 14px;
+          top: 50%;
+          transform: translateY(-50%);
+          color: #94a3b8;
+          pointer-events: none;
+        }
+
+        .care-search-wrapper input {
+          width: 100%;
+          height: 45px;
+          border: 1px solid #dce5e9;
+          border-radius: 11px;
+          outline: none;
+          padding: 0 42px;
+          background: #ffffff;
+          color: #334155;
+          font-size: 13px;
+          transition: all 0.2s ease;
+        }
+
+        .care-search-wrapper input::placeholder {
+          color: #a3afb8;
+        }
+
+        .care-search-wrapper input:focus {
+          border-color: #74aeb4;
+          box-shadow: 0 0 0 4px rgba(73, 137, 145, 0.09);
+        }
+
+        .care-search-clear {
+          position: absolute;
+          right: 9px;
+          top: 50%;
+          transform: translateY(-50%);
+          width: 27px;
+          height: 27px;
+          border: none;
+          border-radius: 8px;
+          background: #edf2f4;
+          color: #718096;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          cursor: pointer;
+        }
+
+        .care-status-select-wrapper {
+          flex: 0 0 170px;
+        }
+
+        .care-status-select {
+          width: 100%;
+          height: 45px;
+          border: 1px solid #dce5e9;
+          border-radius: 11px;
+          padding: 0 13px;
+          outline: none;
+          background: #ffffff;
+          color: #334155;
+          font-size: 13px;
+          font-weight: 700;
+          cursor: pointer;
+        }
+
+        .care-status-select:focus {
+          border-color: #74aeb4;
+          box-shadow: 0 0 0 4px rgba(73, 137, 145, 0.09);
+        }
+
+        /* =========================
+           TABLE
+        ========================= */
+
+        .care-table {
+          width: 100%;
+          min-width: 1050px;
+          border-collapse: separate;
+          border-spacing: 0;
+        }
+
+        .care-table thead th {
+          padding: 13px 18px;
+          background: #dae0e3;
+          color: #7b8a96;
+          font-size: 10px;
+          font-weight: 850;
+          letter-spacing: 0.8px;
+          white-space: nowrap;
+          border-bottom: 1px solid #19191b;
+          border-top: 1px solid #19191b;
+        }
+
+        .care-table tbody td {
+          padding: 16px 18px;
+          vertical-align: middle;
+          border-bottom: 1px solid #d3dbde;
+        }
+
+        .care-table tbody tr {
+          background: #ffffff;
+          transition:
+            background 0.2s ease,
+            transform 0.2s ease;
+        }
+
+        .care-table tbody tr:hover {
+          background: #eaeef0;
+        }
+
+        .care-table tbody tr:last-child td {
+          border-bottom: none;
+        }
+
+        .care-customer {
+          display: flex;
+          align-items: center;
+          gap: 11px;
+        }
+
+        .care-avatar {
+          width: 42px;
+          height: 42px;
+          flex-shrink: 0;
+          border-radius: 13px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          background:
+            linear-gradient(
+              135deg,
+              #dff4ee,
+              #e3eaff
+            );
+          color: #34736f;
+          font-size: 14px;
+          font-weight: 850;
+          border: 1px solid #d8e9e9;
+        }
+
+        .care-customer-name {
+          color: #263746;
+          font-size: 13px;
+          font-weight: 800;
+        }
+
+        .care-customer-id {
+          margin-top: 3px;
+          color: #a0adb7;
+          font-size: 10px;
+        }
+
+        .care-subject {
+          max-width: 270px;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+          color: #34495e;
+          font-size: 13px;
+          font-weight: 800;
+        }
+
+        .care-message-preview {
+          max-width: 270px;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+          margin-top: 4px;
+          color: #9aa7b1;
+          font-size: 11px;
+        }
+
+        .care-contact {
+          display: flex;
+          align-items: center;
+          gap: 7px;
+          font-size: 12px;
+          white-space: nowrap;
+        }
+
+        .care-contact.email {
+          color: #536577;
+        }
+
+        .care-contact.phone {
+          margin-top: 7px;
+          color: #97a4ae;
+        }
+
+        .care-contact-icon {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          width: 23px;
+          height: 23px;
+          border-radius: 7px;
+          background: #f1f5f7;
+          color: #64808a;
+        }
+
+        .care-status-pill {
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+          padding: 6px 10px;
+          border-radius: 999px;
+          border: 1px solid;
+          font-size: 10px;
+          font-weight: 850;
+          white-space: nowrap;
+        }
+
+        .care-date {
+          color: #657687;
+          font-size: 11px;
+          white-space: nowrap;
+        }
+
+        .care-view-button {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          gap: 6px;
+          border: 1px solid #d7e3e7;
+          background: #ffffff;
+          color: #356d78;
+          border-radius: 9px;
+          padding: 8px 12px;
+          font-size: 11px;
+          font-weight: 800;
+          cursor: pointer;
+          transition: all 0.2s ease;
+        }
+
+        .care-view-button:hover {
+          background: #edf8f7;
+          border-color: #2af007;
+          transform: translateY(-1px);
+        }
+
+        /* =========================
+           LOADING / EMPTY
+        ========================= */
+
+        .care-loading,
+        .care-empty {
+          padding: 80px 20px;
+          text-align: center;
+        }
+
+        .care-loading-icon,
+        .care-empty-icon {
+          width: 68px;
+          height: 68px;
+          margin: 0 auto 16px;
+          border-radius: 20px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          background: linear-gradient(
+            135deg,
+            #edf7f6,
+            #edf0fb
+          );
+          color: #4b7e88;
+        }
+
+        .care-loading h4,
+        .care-empty h3 {
+          margin: 0 0 6px;
+          color: #34495e;
+          font-size: 17px;
+          font-weight: 800;
+        }
+
+        .care-loading p,
+        .care-empty p {
+          margin: 0;
+          color: #9aa7b1;
+          font-size: 12px;
+        }
+
+        /* =========================
+           MODAL
+        ========================= */
+
+        .care-modal-backdrop {
+          position: fixed;
+          inset: 0;
+          z-index: 9999;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 20px;
+          background: rgba(24, 38, 48, 0.58);
+          backdrop-filter: blur(7px);
+        }
+
+        .care-modal {
+          width: 100%;
+          max-width: 760px;
+          max-height: 91vh;
+          overflow-y: auto;
+          border-radius: 22px;
+          background: #ffffff;
+          box-shadow:
+            0 30px 90px rgba(0, 0, 0, 0.22),
+            0 5px 20px rgba(0, 0, 0, 0.08);
+          animation: modalIn 0.22s ease-out;
+        }
+
+        @keyframes modalIn {
+          from {
+            opacity: 0;
+            transform: translateY(12px) scale(0.985);
+          }
+
+          to {
+            opacity: 1;
+            transform: translateY(0) scale(1);
+          }
+        }
+
+        .care-modal-header {
+          padding: 22px 24px;
+          display: flex;
+          justify-content: space-between;
+          align-items: flex-start;
+          gap: 15px;
+          background:
+            linear-gradient(
+              135deg,
+              #f8fbfb,
+              #f7f8fd
+            );
+          border-bottom: 1px solid #e9eff1;
+        }
+
+        .care-modal-label {
+          color: #02011f;
+          font-size: 10px;
+          font-weight: 850;
+          letter-spacing: 1px;
+          margin-bottom: 6px;
+        }
+
+        .care-modal-header h2 {
+          margin: 0;
+          color: #01083c;
+          font-size: 22px;
+          line-height: 1.3;
+          font-weight: 850;
+        }
+
+        .care-modal-date {
+          margin-top: 7px;
+          color: #000000;
+          font-size: 11px;
+        }
+
+        .care-modal-close {
+          width: 37px;
+          height: 37px;
+          flex-shrink: 0;
+          border: 1px solid #e0e8ec;
+          border-radius: 11px;
+          background: #ffffff;
+          color: #718096;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          cursor: pointer;
+          transition: all 0.2s ease;
+        }
+
+        .care-modal-close:hover {
+          background: #fff2f3;
+          border-color: #cbf1f2;
+          color: #c24156;
+        }
+
+        .care-modal-body {
+          padding: 23px 24px;
+        }
+
+        /* =========================
+           PROFILE
+        ========================= */
+
+        .care-profile-card {
+          padding: 18px;
+          border: 1px solid #e4ecef;
+          border-radius: 16px;
+          background: #fbfcfd;
+          margin-bottom: 22px;
+        }
+
+        .care-profile-top {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+        }
+
+        .care-profile-avatar {
+          width: 48px;
+          height: 48px;
+          flex-shrink: 0;
+          border-radius: 15px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          background:
+            linear-gradient(
+              135deg,
+              #dff5ef,
+              #e5e9ff
+            );
+          color: #377871;
+          font-size: 18px;
+          font-weight: 850;
+        }
+
+        .care-profile-main {
+          min-width: 0;
+        }
+
+        .care-profile-name {
+          color: #263746;
+          font-size: 15px;
+          font-weight: 850;
+        }
+
+        .care-profile-role {
+          margin-top: 2px;
+          color: #9aa7b1;
+          font-size: 11px;
+        }
+
+        .care-profile-status {
+          margin-left: auto;
+        }
+
+        .care-detail-box {
+          min-height: 63px;
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          padding: 12px;
+          border: 1px solid #e6edef;
+          border-radius: 12px;
+          background: #ffffff;
+        }
+
+        .care-detail-icon {
+          width: 32px;
+          height: 32px;
+          flex-shrink: 0;
+          border-radius: 9px;
+          background: #edf6f6;
+          color: #4c7f88;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+
+        .care-detail-label {
+          color: #9aa7b1;
+          font-size: 9px;
+          font-weight: 850;
+          letter-spacing: 0.8px;
+          margin-bottom: 3px;
+        }
+
+        .care-detail-value {
+          color: #356d78;
+          font-size: 12px;
+          font-weight: 750;
+          text-decoration: none;
+          word-break: break-all;
+        }
+
+        .care-detail-value:hover {
+          text-decoration: underline;
+        }
+
+        .care-detail-muted {
+          color: #a0adb7;
+          font-size: 12px;
+        }
+
+        /* =========================
+           MESSAGE
+        ========================= */
+
+        .care-message-section {
+          margin-bottom: 23px;
+        }
+
+        .care-section-title {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          margin-bottom: 10px;
+          color: #34495e;
+          font-size: 13px;
+          font-weight: 850;
+        }
+
+        .care-section-icon {
+          width: 28px;
+          height: 28px;
+          border-radius: 9px;
+          background: #edf5f5;
+          color: #3f7c83;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+
+        .care-message-box {
+          min-height: 110px;
+          padding: 17px;
+          border: 1px solid #e3ebee;
+          border-radius: 14px;
+          background:
+            linear-gradient(
+              135deg,
+              #fbfcfd,
+              #f7fafb
+            );
+          color: #526273;
+          font-size: 13px;
+          line-height: 1.75;
+          white-space: pre-wrap;
+        }
+
+        /* =========================
+           STATUS ACTIONS
+        ========================= */
+
+        .care-status-section {
+          padding-top: 2px;
+        }
+
+        .care-status-actions {
+          display: flex;
+          gap: 9px;
+          flex-wrap: wrap;
+        }
+
+        .care-status-action {
+          display: inline-flex;
+          align-items: center;
+          gap: 7px;
+          border: 1px solid;
+          border-radius: 10px;
+          padding: 9px 13px;
+          font-size: 11px;
+          font-weight: 800;
+          cursor: pointer;
+          transition: all 0.2s ease;
+        }
+
+        .care-status-action:not(:disabled):hover {
+          transform: translateY(-2px);
+          box-shadow: 0 6px 15px rgba(38, 55, 70, 0.07);
+        }
+
+        .care-status-action:disabled {
+          cursor: default;
+          opacity: 0.85;
+        }
+
+        .care-active-check {
+          display: inline-flex;
+          margin-left: 2px;
+        }
+
+        /* =========================
+           MODAL FOOTER
+        ========================= */
+
+        .care-modal-footer {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          gap: 12px;
+          flex-wrap: wrap;
+          padding: 16px 24px;
+          border-top: 1px solid #e9eff1;
+          background: #fbfcfd;
+        }
+
+        .care-updated {
+          color: #460000;
+          font-size: 10px;
+        }
+
+        .care-updated strong {
+          margin-left: 4px;
+          color: #450000;
+          font-weight: 700;
+        }
+
+        .care-footer-actions {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+        }
+
+        .care-email-button,
+        .care-close-button {
+          display: inline-flex;
+          align-items: center;
+          gap: 7px;
+          border-radius: 10px;
+          padding: 9px 13px;
+          font-size: 11px;
+          font-weight: 800;
+          text-decoration: none;
+          cursor: pointer;
+          transition: all 0.2s ease;
+        }
+
+        .care-email-button {
+          border: 1px solid #d7e3e7;
+          background: #ffffff;
+          color: #356d78;
+        }
+
+        .care-email-button:hover {
+          background: #edf8f7;
+          border-color: #a7cbcd;
+        }
+
+        .care-close-button {
+          border: 1px solid #356d78;
+          background: #356d78;
+          color: #ffffff;
+        }
+
+        .care-close-button:hover {
+          background: #294f5c;
+          border-color: #294f5c;
+        }
+
+        /* =========================
+           ANIMATIONS
+        ========================= */
+
+        .spin-animation {
+          animation: spin 1s linear infinite;
+        }
+
         @keyframes spin {
           from {
             transform: rotate(0deg);
@@ -1190,95 +1985,197 @@ export default function CustomerCarePage() {
             transform: rotate(360deg);
           }
         }
+
+        /* =========================
+           RESPONSIVE
+        ========================= */
+
+        @media (max-width: 991.98px) {
+          .care-hero {
+            padding: 27px;
+          }
+
+          .care-hero-side {
+            max-width: 430px;
+          }
+
+          .care-filter-header {
+            align-items: flex-start;
+          }
+        }
+
+        @media (max-width: 767.98px) {
+          .customer-care-page {
+            padding-bottom: 20px;
+          }
+
+          .care-hero {
+            border-radius: 19px;
+            padding: 23px;
+          }
+
+          .care-title {
+            font-size: 30px;
+          }
+
+          .care-description {
+            font-size: 13px;
+          }
+
+          .care-filter-header {
+            flex-direction: column;
+          }
+
+          .care-inbox-count {
+            align-self: stretch;
+          }
+
+          .care-filter-bar {
+            flex-direction: column;
+            align-items: stretch;
+          }
+
+          .care-status-select-wrapper {
+            flex-basis: auto;
+            width: 100%;
+          }
+
+          .care-modal-backdrop {
+            padding: 10px;
+          }
+
+          .care-modal {
+            max-height: 95vh;
+            border-radius: 18px;
+          }
+
+          .care-modal-header,
+          .care-modal-body {
+            padding: 19px;
+          }
+
+          .care-modal-footer {
+            padding: 15px 19px;
+          }
+
+          .care-profile-status {
+            margin-left: 0;
+          }
+
+          .care-profile-top {
+            align-items: flex-start;
+            flex-wrap: wrap;
+          }
+
+          .care-footer-actions {
+            width: 100%;
+          }
+
+          .care-email-button,
+          .care-close-button {
+            flex: 1;
+            justify-content: center;
+          }
+        }
+
+        @media (max-width: 575.98px) {
+          .care-hero {
+            padding: 20px;
+          }
+
+          .care-hero-tags {
+            align-items: stretch;
+            flex-direction: column;
+          }
+
+          .care-hero-tags span {
+            width: fit-content;
+          }
+
+          .care-refresh-button {
+            width: 100%;
+            justify-content: center;
+          }
+
+          .care-profile-card {
+            padding: 14px;
+          }
+
+          .care-status-actions {
+            flex-direction: column;
+          }
+
+          .care-status-action {
+            width: 100%;
+            justify-content: center;
+          }
+
+          .care-modal-header h2 {
+            font-size: 19px;
+          }
+        }
       `}</style>
     </main>
   );
 }
 
+/* ============================================================
+   STAT CARD
+============================================================ */
+
 function StatCard({
   title,
   value,
+  description,
   icon,
   iconBackground,
   iconColor,
+  accent,
 }: {
   title: string;
   value: number;
+  description: string;
   icon: React.ReactNode;
   iconBackground: string;
   iconColor: string;
+  accent: string;
 }) {
   return (
     <div className="col-xl-3 col-md-6">
-      <div
-        style={{
-          background: "#ffffff",
-          border: "1px solid #e5ebf0",
-          borderRadius: "16px",
-          padding: "19px",
-          height: "100%",
-          boxShadow: "0 7px 25px rgba(38,55,70,0.05)",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          gap: "15px",
-        }}
-      >
-        <div>
-          <div
-            style={{
-              color: "#81909d",
-              fontSize: "13px",
-              fontWeight: 700,
-              marginBottom: "7px",
-            }}
-          >
-            {title}
-          </div>
-
-          <div
-            style={{
-              color: "#263746",
-              fontSize: "28px",
-              fontWeight: 850,
-              lineHeight: 1,
-            }}
-          >
-            {value}
-          </div>
-        </div>
-
+      <div className="care-stat-card">
         <div
+          className="care-stat-accent"
           style={{
-            width: "46px",
-            height: "46px",
-            borderRadius: "14px",
-            background: iconBackground,
-            color: iconColor,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            flexShrink: 0,
+            background: accent,
           }}
-        >
-          {icon}
+        />
+
+        <div className="d-flex align-items-center justify-content-between gap-3">
+          <div>
+            <div className="care-stat-label">
+              {title}
+            </div>
+
+            <div className="care-stat-value">
+              {value}
+            </div>
+
+            <div className="care-stat-description">
+              {description}
+            </div>
+          </div>
+
+          <div
+            className="care-stat-icon"
+            style={{
+              background: iconBackground,
+              color: iconColor,
+            }}
+          >
+            {icon}
+          </div>
         </div>
       </div>
     </div>
   );
 }
-
-const thStyle: React.CSSProperties = {
-  textAlign: "left",
-  padding: "14px 18px",
-  fontSize: "11px",
-  fontWeight: 850,
-  letterSpacing: "0.6px",
-  color: "#7c8b98",
-  whiteSpace: "nowrap",
-};
-
-const tdStyle: React.CSSProperties = {
-  padding: "16px 18px",
-  verticalAlign: "middle",
-};

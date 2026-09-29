@@ -461,7 +461,7 @@ export default function Header() {
             inset: 0,
             background: "rgba(0, 0, 0, 0.55)",
             zIndex: 9998,
-            backdropFilter: "blur(3px)",
+            backdropFilter: "blur(2px)",
           }}
         />
       )}
@@ -474,7 +474,7 @@ export default function Header() {
           height: "100vh",
           width: "340px",
           maxWidth: "88vw",
-          background: "#ffffff",
+          background: "#eaeaf1",
           zIndex: 9999,
           boxShadow: "8px 0 35px rgba(0,0,0,0.18)",
           transform: open ? "translateX(0)" : "translateX(-105%)",
@@ -490,8 +490,7 @@ export default function Header() {
             display: "flex",
             alignItems: "center",
             justifyContent: "space-between",
-            background:
-              "linear-gradient(135deg, #172554, #312e81, #6d28d9)",
+            background: "#123b63",
             color: "#fff",
             flexShrink: 0,
           }}
