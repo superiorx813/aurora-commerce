@@ -309,14 +309,80 @@ export async function GET() {
     );
   }
 
-  const result = orders.map((order) => ({
-    ...order,
+  /* -------------------------------------------------------
+   Get customer order requests
+------------------------------------------------------- */
 
-    items:
-      itemsByOrder.get(order.id) || []
-  }));
+const requestOrderIds = orders.map(
+  (order) => order.id
+);
 
-  return NextResponse.json({
-    orders: result
-  });
+let requestRows: any[] = [];
+
+if (requestOrderIds.length) {
+  const requestPlaceholders =
+    requestOrderIds.map(() => "?").join(",");
+
+  const [rows] = await db.query(
+    `
+    SELECT
+      id,
+      order_id,
+      request_type,
+      reason,
+      details,
+      refund_amount,
+      replacement_details,
+      status,
+      admin_note,
+      created_at,
+      updated_at
+    FROM order_requests
+    WHERE user_id=?
+      AND order_id IN (${requestPlaceholders})
+    ORDER BY created_at DESC
+    `,
+    [
+      user.id,
+      ...requestOrderIds
+    ]
+  );
+
+  requestRows = rows as any[];
 }
+
+/* -------------------------------------------------------
+   Map requests to orders
+------------------------------------------------------- */
+
+const requestsByOrder = new Map<
+  number,
+  any
+>();
+
+for (const request of requestRows) {
+  if (!requestsByOrder.has(request.order_id)) {
+    requestsByOrder.set(
+      request.order_id,
+      request
+    );
+  }
+}
+
+/* -------------------------------------------------------
+   Final response
+------------------------------------------------------- */
+
+const result = orders.map((order) => ({
+  ...order,
+
+  items:
+    itemsByOrder.get(order.id) || [],
+
+  request:
+    requestsByOrder.get(order.id) || null
+}));
+
+return NextResponse.json({
+  orders: result
+});}

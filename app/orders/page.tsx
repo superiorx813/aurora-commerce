@@ -1,8 +1,10 @@
+
 "use client";
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { money } from "@/lib/utils";
+import OrderRequestModal from "@/components/OrderRequestModal";
 
 type OrderItem = {
   id: number;
@@ -25,6 +27,27 @@ type Order = {
   status: string;
   created_at: string;
   items: OrderItem[];
+
+  request?: {
+    id: number;
+    order_id: number;
+    request_type:
+      | "CANCELLATION"
+      | "REFUND"
+      | "REPLACEMENT";
+    reason: string;
+    details?: string | null;
+    refund_amount?: number | string | null;
+    replacement_details?: string | null;
+    status:
+      | "PENDING"
+      | "APPROVED"
+      | "REJECTED"
+      | "COMPLETED";
+    admin_note?: string | null;
+    created_at: string;
+    updated_at: string;
+  } | null;
 };
 
 
@@ -89,6 +112,18 @@ export default function OrdersPage() {
   const [orders, setOrders] =
     useState<Order[] | null>(null);
 
+  /* =======================================================
+     SELECTED ORDER FOR REQUEST MODAL
+     ======================================================= */
+
+  const [requestOrder, setRequestOrder] =
+    useState<Order | null>(null);
+
+
+  /* =======================================================
+     LOAD ORDERS
+     ======================================================= */
+
   useEffect(() => {
     fetch("/api/orders")
       .then((response) => response.json())
@@ -102,6 +137,22 @@ export default function OrdersPage() {
 
 
   /* =======================================================
+     REFRESH ORDERS
+     ======================================================= */
+
+  const refreshOrders = () => {
+    fetch("/api/orders")
+      .then((response) => response.json())
+      .then((data) => {
+        setOrders(data.orders || []);
+      })
+      .catch(() => {
+        setOrders([]);
+      });
+  };
+
+
+  /* =======================================================
      LOADING
      ======================================================= */
 
@@ -109,19 +160,29 @@ export default function OrdersPage() {
     return (
       <main className="container py-5 min-vh-100">
         <div className="py-5">
+
           <div className="placeholder-glow">
             <span className="placeholder col-2 mb-3"></span>
+
             <span className="placeholder col-4 d-block mb-5"></span>
           </div>
 
           <div className="card border-0 shadow-sm rounded-4">
+
             <div className="card-body p-4 p-lg-5">
+
               <div className="placeholder-glow">
+
                 <span className="placeholder col-4 mb-3"></span>
+
                 <span className="placeholder col-6 d-block"></span>
+
               </div>
+
             </div>
+
           </div>
+
         </div>
       </main>
     );
@@ -135,9 +196,11 @@ export default function OrdersPage() {
   if (!orders.length) {
     return (
       <main className="container py-5 min-vh-100">
+
         <div className="py-5">
 
           <div className="mb-5">
+
             <div className="text-uppercase small fw-bold text-secondary mb-2">
               Account
             </div>
@@ -149,10 +212,12 @@ export default function OrdersPage() {
             <p className="text-secondary fs-5 mb-0">
               Everything you've purchased from Aurora.
             </p>
+
           </div>
 
 
           <div className="card border-0 shadow-sm rounded-4">
+
             <div className="card-body text-center py-5 px-4">
 
               <div
@@ -183,9 +248,11 @@ export default function OrdersPage() {
               </Link>
 
             </div>
+
           </div>
 
         </div>
+
       </main>
     );
   }
@@ -229,12 +296,15 @@ export default function OrdersPage() {
         <div className="d-flex flex-wrap align-items-center justify-content-between gap-3 mb-4">
 
           <div className="text-secondary">
+
             <span className="fw-semibold text-dark">
               {orders.length}
             </span>{" "}
+
             {orders.length === 1
               ? "order"
               : "orders"}
+
           </div>
 
         </div>
@@ -339,6 +409,7 @@ export default function OrdersPage() {
                                 height: "88px"
                               }}
                             >
+
                               <img
                                 src={
                                   firstItem.image_url
@@ -348,6 +419,7 @@ export default function OrdersPage() {
                                 }
                                 className="w-100 h-100 object-fit-cover"
                               />
+
                             </div>
 
                           ) : (
@@ -359,9 +431,11 @@ export default function OrdersPage() {
                                 height: "88px"
                               }}
                             >
+
                               <span className="text-secondary small">
                                 No image
                               </span>
+
                             </div>
 
                           )}
@@ -400,16 +474,38 @@ export default function OrdersPage() {
                         </div>
 
 
-                        {/* VIEW ORDER */}
+                        {/* ACTION BUTTONS */}
 
                         <div className="col-12 col-md-auto">
 
-                          <Link
-                            href={`/orders/${order.order_number}`}
-                            className="btn btn-dark rounded-3 px-4 py-2 fw-semibold"
-                          >
-                            View order
-                          </Link>
+                          <div className="d-flex flex-wrap justify-content-end gap-2">
+
+                            {/* VIEW ORDER */}
+
+                            <Link
+                              href={`/orders/${order.order_number}`}
+                              className="btn btn-dark rounded-3 px-4 py-2 fw-semibold"
+                            >
+                              View order
+                            </Link>
+
+
+                            {/* CANCELLATION / REFUND / REPLACEMENT */}
+
+                            {!order.request &&
+                              order.status !== "CANCELLED" && (
+                                <button
+                                  type="button"
+                                  className="btn btn-outline-primary rounded-3 px-4 py-2 fw-semibold"
+                                  onClick={() =>
+                                    setRequestOrder(order)
+                                  }
+                                >
+                                  Cancellation / Refund / Replacement
+                                </button>
+                              )}
+
+                          </div>
 
                         </div>
 
@@ -425,6 +521,57 @@ export default function OrdersPage() {
 
                   </div>
 
+
+                  {/* =======================================
+                      SERVICE REQUEST STATUS
+                      ======================================= */}
+
+                  {order.request && (
+
+                    <div className="border-top mt-4 pt-4">
+
+                      <div className="d-flex flex-wrap align-items-center justify-content-between gap-3">
+
+                        <div>
+
+                          <div className="small text-uppercase fw-bold text-secondary mb-1">
+                            Service Request
+                          </div>
+
+                          <div className="fw-semibold">
+                            {order.request.request_type.replaceAll(
+                              "_",
+                              " "
+                            )}
+                          </div>
+
+                          <div className="small text-secondary">
+                            {order.request.reason}
+                          </div>
+
+                        </div>
+
+
+                        <span
+                          className={`badge rounded-pill px-3 py-2 ${
+                            order.request.status === "PENDING"
+                              ? "bg-warning-subtle text-warning-emphasis"
+                              : order.request.status === "APPROVED"
+                              ? "bg-success-subtle text-success-emphasis"
+                              : order.request.status === "REJECTED"
+                              ? "bg-danger-subtle text-danger-emphasis"
+                              : "bg-primary-subtle text-primary-emphasis"
+                          }`}
+                        >
+                          {order.request.status}
+                        </span>
+
+                      </div>
+
+                    </div>
+
+                  )}
+
                 </div>
 
               </div>
@@ -435,6 +582,18 @@ export default function OrdersPage() {
 
       </div>
 
+
+      {/* =====================================================
+          ORDER REQUEST MODAL
+          ===================================================== */}
+
+      <OrderRequestModal
+        order={requestOrder}
+        onClose={() => setRequestOrder(null)}
+        onSubmitted={refreshOrders}
+      />
+
     </main>
   );
 }
+

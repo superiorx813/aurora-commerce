@@ -32,6 +32,7 @@ import {
   Hash,
   Send,
   Pencil,
+  CircleAlert,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
@@ -816,6 +817,12 @@ export default function Header() {
                 href="/admin/customer-care"
                 icon={<MessageCircle size={18} />}
                 label="Customer Care"
+                onClick={closeMenu}
+              />
+              <SideLink
+                href="/admin/order-requests"
+                icon={<CircleAlert size={18} />}
+                label="Order Requests"
                 onClick={closeMenu}
               />
             </MenuSection>

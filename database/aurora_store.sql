@@ -343,3 +343,51 @@ CREATE TABLE IF NOT EXISTS customer_messages (
 ) ENGINE=InnoDB
 DEFAULT CHARSET=utf8mb4
 COLLATE=utf8mb4_unicode_ci;
+
+-- 30/09/2026
+CREATE TABLE order_requests (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    order_id BIGINT UNSIGNED NOT NULL,
+    user_id BIGINT UNSIGNED NOT NULL,
+
+    request_type ENUM(
+        'CANCELLATION',
+        'REFUND',
+        'REPLACEMENT'
+    ) NOT NULL,
+
+    reason VARCHAR(255) NOT NULL,
+    details TEXT NULL,
+
+    refund_amount DECIMAL(12,2) NULL,
+    replacement_details TEXT NULL,
+
+    status ENUM(
+        'PENDING',
+        'APPROVED',
+        'REJECTED',
+        'COMPLETED'
+    ) NOT NULL DEFAULT 'PENDING',
+
+    admin_note TEXT NULL,
+
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+        ON UPDATE CURRENT_TIMESTAMP,
+
+    PRIMARY KEY (id),
+
+    KEY idx_order_requests_order (order_id),
+    KEY idx_order_requests_user (user_id),
+    KEY idx_order_requests_status (status),
+
+    CONSTRAINT fk_order_requests_order
+        FOREIGN KEY (order_id)
+        REFERENCES orders(id)
+        ON DELETE CASCADE,
+
+    CONSTRAINT fk_order_requests_user
+        FOREIGN KEY (user_id)
+        REFERENCES users(id)
+        ON DELETE CASCADE
+);

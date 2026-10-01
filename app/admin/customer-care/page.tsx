@@ -54,9 +54,9 @@ function getStatusConfig(status: MessageStatus) {
       return {
         label: "New",
         icon: <Clock3 size={14} />,
-        background: "#fff7e8",
+        background: "#b8b381",
         color: "#b86b00",
-        border: "#ffdca8",
+        border: "#060606",
         gradient: "linear-gradient(135deg, #fff8eb, #fff1d6)",
       };
 
@@ -64,9 +64,9 @@ function getStatusConfig(status: MessageStatus) {
       return {
         label: "Read",
         icon: <Eye size={14} />,
-        background: "#edf5ff",
+        background: "#b5b7d9",
         color: "#2563a8",
-        border: "#c9ddf8",
+        border: "#101111",
         gradient: "linear-gradient(135deg, #eff7ff, #e4f0ff)",
       };
 
@@ -74,9 +74,9 @@ function getStatusConfig(status: MessageStatus) {
       return {
         label: "Resolved",
         icon: <CheckCircle2 size={14} />,
-        background: "#eafaf3",
-        color: "#168052",
-        border: "#bcebd3",
+        background: "#5d947d",
+        color: "#090c0b",
+        border: "#040404",
         gradient: "linear-gradient(135deg, #edfcf5, #def7eb)",
       };
   }
@@ -371,9 +371,9 @@ export default function CustomerCarePage() {
               value={stats.total}
               description="All customer enquiries"
               icon={<MessageCircle size={21} />}
-              iconBackground="#edf1ff"
+              iconBackground="#95b894"
               iconColor="#4f46c5"
-              accent="#6658d3"
+              accent="#c3111c"
             />
 
             <StatCard
@@ -1102,7 +1102,7 @@ export default function CustomerCarePage() {
         ========================= */
 
         .section-kicker {
-          color: #6d8791;
+          color: #500404;
           font-size: 10px;
           font-weight: 850;
           letter-spacing: 1.2px;
@@ -1110,7 +1110,7 @@ export default function CustomerCarePage() {
         }
 
         .section-heading {
-          color: #263746;
+          color: #060106;
           font-size: 21px;
           font-weight: 850;
         }
@@ -1120,9 +1120,9 @@ export default function CustomerCarePage() {
         ========================= */
 
         .care-refresh-button {
-          border: 1px solid #d8e3e7;
-          background: #ffffff;
-          color: #356d78;
+          border: 2px solid #010a0d;
+          background: #a9c0a8;
+          color: #050d55;
           border-radius: 12px;
           padding: 10px 15px;
           display: inline-flex;
@@ -1137,8 +1137,8 @@ export default function CustomerCarePage() {
 
         .care-refresh-button:hover:not(:disabled) {
           transform: translateY(-2px);
-          border-color: #619e5a;
-          box-shadow: 0 9px 24px rgba(38, 55, 70, 0.09);
+          border-color: #2129be;
+          box-shadow: 0 9px 24px rgb(155, 157, 108);
         }
 
         .care-refresh-button:disabled {
@@ -1155,8 +1155,8 @@ export default function CustomerCarePage() {
           overflow: hidden;
           height: 100%;
           padding: 20px;
-          background: #ffffff;
-          border: 1px solid #e4ecef;
+          background: linear-gradient(135deg, #fafafa, #b5cbc6);
+          border: 2px solid #2200b8;
           border-radius: 17px;
           box-shadow: 0 7px 25px rgba(38, 55, 70, 0.05);
           transition:
@@ -1251,7 +1251,7 @@ export default function CustomerCarePage() {
 
         .care-content-card {
           overflow: hidden;
-          background: #ffffff;
+          background: #a1bca3;
           border: 1px solid #e3ebef;
           border-radius: 20px;
           box-shadow: 0 12px 38px rgba(38, 55, 70, 0.065);
@@ -1263,7 +1263,7 @@ export default function CustomerCarePage() {
           justify-content: space-between;
           align-items: center;
           gap: 20px;
-          border-bottom: 1px solid #edf2f4;
+          border-bottom: 2px solid #02090c;
         }
 
         .care-table-title {
@@ -1285,19 +1285,19 @@ export default function CustomerCarePage() {
           text-align: center;
           border-radius: 12px;
           background: #f4f8f9;
-          border: 1px solid #e4edef;
+          border: 2px solid #000000;
         }
 
         .care-count-number {
           display: block;
-          color: #356d78;
+          color: #035f05;
           font-size: 20px;
           font-weight: 850;
         }
 
         .care-count-label {
           display: block;
-          color: #93a1aa;
+          color: #0c0298;
           font-size: 10px;
           font-weight: 700;
           margin-top: 2px;
@@ -1312,8 +1312,8 @@ export default function CustomerCarePage() {
           align-items: center;
           gap: 12px;
           padding: 16px 18px;
-          background: #fbfcfd;
-          border-bottom: 1px solid #edf2f4;
+          background: #5664a1f8;
+          border-bottom: 1px solid #000000;
         }
 
         .care-search-wrapper {
@@ -1326,29 +1326,29 @@ export default function CustomerCarePage() {
           left: 14px;
           top: 50%;
           transform: translateY(-50%);
-          color: #94a3b8;
+          color: #cd1845;
           pointer-events: none;
         }
 
         .care-search-wrapper input {
           width: 100%;
           height: 45px;
-          border: 1px solid #dce5e9;
+          border: 1px solid #101111;
           border-radius: 11px;
           outline: none;
           padding: 0 42px;
-          background: #ffffff;
+          background: #f3eded;
           color: #334155;
           font-size: 13px;
           transition: all 0.2s ease;
         }
 
         .care-search-wrapper input::placeholder {
-          color: #a3afb8;
+          color: #0f1010;
         }
 
         .care-search-wrapper input:focus {
-          border-color: #74aeb4;
+          border-color: #0b0287;
           box-shadow: 0 0 0 4px rgba(73, 137, 145, 0.09);
         }
 
