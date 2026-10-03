@@ -283,7 +283,7 @@ export default async function OrderDetail({
           >
             Continue Shopping
           </Link>
-
+        
         </div>
 
       </div>
@@ -918,7 +918,13 @@ export default async function OrderDetail({
                 >
                   Continue Shopping
                 </Link>
-
+              
+              <a
+  href={`/api/invoices/${encodeURIComponent(order.order_number)}`}
+  className="btn btn-outline-primary rounded-3 px-4 py-2 fw-semibold"
+>
+  Download Invoice 
+</a>
               </div>
 
             </div>

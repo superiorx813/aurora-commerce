@@ -54,7 +54,7 @@ function getStatusConfig(status: MessageStatus) {
       return {
         label: "New",
         icon: <Clock3 size={14} />,
-        background: "#b8b381",
+        background: "#ffffff",
         color: "#b86b00",
         border: "#060606",
         gradient: "linear-gradient(135deg, #fff8eb, #fff1d6)",
@@ -64,7 +64,7 @@ function getStatusConfig(status: MessageStatus) {
       return {
         label: "Read",
         icon: <Eye size={14} />,
-        background: "#b5b7d9",
+        background: "#ffffff",
         color: "#2563a8",
         border: "#101111",
         gradient: "linear-gradient(135deg, #eff7ff, #e4f0ff)",
@@ -74,7 +74,7 @@ function getStatusConfig(status: MessageStatus) {
       return {
         label: "Resolved",
         icon: <CheckCircle2 size={14} />,
-        background: "#5d947d",
+        background: "#adc7bc",
         color: "#090c0b",
         border: "#040404",
         gradient: "linear-gradient(135deg, #edfcf5, #def7eb)",
@@ -1251,8 +1251,8 @@ export default function CustomerCarePage() {
 
         .care-content-card {
           overflow: hidden;
-          background: #a1bca3;
-          border: 1px solid #e3ebef;
+          background: #ccdbc6;
+          border: 1px solid #282828;
           border-radius: 20px;
           box-shadow: 0 12px 38px rgba(38, 55, 70, 0.065);
         }
@@ -1349,7 +1349,7 @@ export default function CustomerCarePage() {
 
         .care-search-wrapper input:focus {
           border-color: #0b0287;
-          box-shadow: 0 0 0 4px rgba(73, 137, 145, 0.09);
+          box-shadow: 0 0 0 4px rgb(176, 174, 174);
         }
 
         .care-search-clear {
@@ -1376,11 +1376,11 @@ export default function CustomerCarePage() {
         .care-status-select {
           width: 100%;
           height: 45px;
-          border: 1px solid #dce5e9;
+          border: 2px solid #121212;
           border-radius: 11px;
           padding: 0 13px;
           outline: none;
-          background: #ffffff;
+          background: #eeeaea;
           color: #334155;
           font-size: 13px;
           font-weight: 700;
@@ -1388,7 +1388,7 @@ export default function CustomerCarePage() {
         }
 
         .care-status-select:focus {
-          border-color: #74aeb4;
+          border-color: #02a823;
           box-shadow: 0 0 0 4px rgba(73, 137, 145, 0.09);
         }
 
@@ -1405,9 +1405,9 @@ export default function CustomerCarePage() {
 
         .care-table thead th {
           padding: 13px 18px;
-          background: #dae0e3;
-          color: #7b8a96;
-          font-size: 10px;
+          background: #1f6acc;
+          color: #f7f7f7;
+          font-size: 12px;
           font-weight: 850;
           letter-spacing: 0.8px;
           white-space: nowrap;
@@ -1418,7 +1418,7 @@ export default function CustomerCarePage() {
         .care-table tbody td {
           padding: 16px 18px;
           vertical-align: middle;
-          border-bottom: 1px solid #d3dbde;
+          border-bottom: 1px solid #57595a;
         }
 
         .care-table tbody tr {
@@ -1429,7 +1429,7 @@ export default function CustomerCarePage() {
         }
 
         .care-table tbody tr:hover {
-          background: #eaeef0;
+          background: #fbefef;
         }
 
         .care-table tbody tr:last-child td {
@@ -1453,24 +1453,24 @@ export default function CustomerCarePage() {
           background:
             linear-gradient(
               135deg,
-              #dff4ee,
-              #e3eaff
+              #a4dccd,
+              #8193c8
             );
-          color: #34736f;
+          color: #0210d2;
           font-size: 14px;
           font-weight: 850;
-          border: 1px solid #d8e9e9;
+          border: 1px solid #141515;
         }
 
         .care-customer-name {
-          color: #263746;
-          font-size: 13px;
+          color: #010102;
+          font-size: 12px;
           font-weight: 800;
         }
 
         .care-customer-id {
           margin-top: 3px;
-          color: #a0adb7;
+          color: #232324;
           font-size: 10px;
         }
 
@@ -1479,8 +1479,8 @@ export default function CustomerCarePage() {
           overflow: hidden;
           text-overflow: ellipsis;
           white-space: nowrap;
-          color: #34495e;
-          font-size: 13px;
+          color: #080808;
+          font-size: 12px;
           font-weight: 800;
         }
 
@@ -1490,7 +1490,7 @@ export default function CustomerCarePage() {
           text-overflow: ellipsis;
           white-space: nowrap;
           margin-top: 4px;
-          color: #9aa7b1;
+          color: #0e0f0f;
           font-size: 11px;
         }
 
@@ -1503,12 +1503,12 @@ export default function CustomerCarePage() {
         }
 
         .care-contact.email {
-          color: #536577;
+          color: #030b7a;
         }
 
         .care-contact.phone {
           margin-top: 7px;
-          color: #97a4ae;
+          color: #084a02;
         }
 
         .care-contact-icon {
@@ -1518,8 +1518,8 @@ export default function CustomerCarePage() {
           width: 23px;
           height: 23px;
           border-radius: 7px;
-          background: #f1f5f7;
-          color: #64808a;
+          background: #ffffff;
+          color: #10a624;
         }
 
         .care-status-pill {
@@ -1535,7 +1535,7 @@ export default function CustomerCarePage() {
         }
 
         .care-date {
-          color: #657687;
+          color: #000000;
           font-size: 11px;
           white-space: nowrap;
         }
@@ -1545,9 +1545,9 @@ export default function CustomerCarePage() {
           align-items: center;
           justify-content: center;
           gap: 6px;
-          border: 1px solid #d7e3e7;
-          background: #ffffff;
-          color: #356d78;
+          border: 1px solid #19191a;
+          background: #e3eaea;
+          color: #0318b9;
           border-radius: 9px;
           padding: 8px 12px;
           font-size: 11px;
@@ -1559,7 +1559,7 @@ export default function CustomerCarePage() {
         .care-view-button:hover {
           background: #edf8f7;
           border-color: #2af007;
-          transform: translateY(-1px);
+          transform: translateY(-6px);
         }
 
         /* =========================
@@ -1626,7 +1626,7 @@ export default function CustomerCarePage() {
           max-height: 91vh;
           overflow-y: auto;
           border-radius: 22px;
-          background: #ffffff;
+          background: #f6f2f2;
           box-shadow:
             0 30px 90px rgba(0, 0, 0, 0.22),
             0 5px 20px rgba(0, 0, 0, 0.08);
@@ -1654,14 +1654,14 @@ export default function CustomerCarePage() {
           background:
             linear-gradient(
               135deg,
-              #f8fbfb,
-              #f7f8fd
+              #2864c4,
+              #2a53e7
             );
           border-bottom: 1px solid #e9eff1;
         }
 
         .care-modal-label {
-          color: #02011f;
+          color: #ffffff;
           font-size: 10px;
           font-weight: 850;
           letter-spacing: 1px;
@@ -1670,7 +1670,7 @@ export default function CustomerCarePage() {
 
         .care-modal-header h2 {
           margin: 0;
-          color: #01083c;
+          color: #ffffff;
           font-size: 22px;
           line-height: 1.3;
           font-weight: 850;
@@ -1678,7 +1678,7 @@ export default function CustomerCarePage() {
 
         .care-modal-date {
           margin-top: 7px;
-          color: #000000;
+          color: #ffffff;
           font-size: 11px;
         }
 
@@ -1686,10 +1686,10 @@ export default function CustomerCarePage() {
           width: 37px;
           height: 37px;
           flex-shrink: 0;
-          border: 1px solid #e0e8ec;
+          border: 2px solid #0e0e0e;
           border-radius: 11px;
           background: #ffffff;
-          color: #718096;
+          color: #000000;
           display: flex;
           align-items: center;
           justify-content: center;
@@ -1713,9 +1713,9 @@ export default function CustomerCarePage() {
 
         .care-profile-card {
           padding: 18px;
-          border: 1px solid #e4ecef;
+          border: 1px solid #030303;
           border-radius: 16px;
-          background: #fbfcfd;
+          background: #ccd3db;
           margin-bottom: 22px;
         }
 
@@ -1736,10 +1736,10 @@ export default function CustomerCarePage() {
           background:
             linear-gradient(
               135deg,
-              #dff5ef,
-              #e5e9ff
+              #7aa7a1,
+              #a9c2a4
             );
-          color: #377871;
+          color: #02066f;
           font-size: 18px;
           font-weight: 850;
         }
@@ -1749,14 +1749,14 @@ export default function CustomerCarePage() {
         }
 
         .care-profile-name {
-          color: #263746;
+          color: #010101;
           font-size: 15px;
           font-weight: 850;
         }
 
         .care-profile-role {
           margin-top: 2px;
-          color: #9aa7b1;
+          color: #141415;
           font-size: 11px;
         }
 
@@ -1770,9 +1770,9 @@ export default function CustomerCarePage() {
           align-items: center;
           gap: 10px;
           padding: 12px;
-          border: 1px solid #e6edef;
+          border: 1px solid #000000;
           border-radius: 12px;
-          background: #ffffff;
+          background: #f9faf8;
         }
 
         .care-detail-icon {
@@ -1781,14 +1781,14 @@ export default function CustomerCarePage() {
           flex-shrink: 0;
           border-radius: 9px;
           background: #edf6f6;
-          color: #4c7f88;
+          color: #066778;
           display: flex;
           align-items: center;
           justify-content: center;
         }
 
         .care-detail-label {
-          color: #9aa7b1;
+          color: #060707;
           font-size: 9px;
           font-weight: 850;
           letter-spacing: 0.8px;
@@ -1825,7 +1825,7 @@ export default function CustomerCarePage() {
           align-items: center;
           gap: 8px;
           margin-bottom: 10px;
-          color: #34495e;
+          color: #000000;
           font-size: 13px;
           font-weight: 850;
         }
@@ -1844,15 +1844,15 @@ export default function CustomerCarePage() {
         .care-message-box {
           min-height: 110px;
           padding: 17px;
-          border: 1px solid #e3ebee;
+          border: 1px solid #070707;
           border-radius: 14px;
           background:
             linear-gradient(
               135deg,
-              #fbfcfd,
-              #f7fafb
+              #d5dde5,
+              #ffffff
             );
-          color: #526273;
+          color: #010101;
           font-size: 13px;
           line-height: 1.75;
           white-space: pre-wrap;
@@ -1912,11 +1912,11 @@ export default function CustomerCarePage() {
           flex-wrap: wrap;
           padding: 16px 24px;
           border-top: 1px solid #e9eff1;
-          background: #fbfcfd;
+          background: #cfd9e4;
         }
 
         .care-updated {
-          color: #460000;
+          color: #000000;
           font-size: 10px;
         }
 
@@ -1949,12 +1949,12 @@ export default function CustomerCarePage() {
         .care-email-button {
           border: 1px solid #d7e3e7;
           background: #ffffff;
-          color: #356d78;
+          color: #015262;
         }
 
         .care-email-button:hover {
           background: #edf8f7;
-          border-color: #a7cbcd;
+          border-color: #2a7a7f;
         }
 
         .care-close-button {

@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getSession } from "@/lib/auth";
+import { generateInvoice } from "@/lib/invoice/generateInvoice";
+import { sendInvoiceEmail } from "@/lib/mail/sendInvoiceEmail";
 
 export async function POST(req: Request) {
   const user = await getSession();
@@ -187,11 +189,115 @@ export async function POST(req: Request) {
       );
     }
 
-    await conn.commit();
+    
+await conn.commit();
 
-    return NextResponse.json({
-      orderNumber
-    });
+// The order is now safely committed. Release the connection
+// before generating the PDF or communicating with Gmail.
+
+
+try {
+  const [invoiceRows] = await db.query(
+    `
+    SELECT
+      o.id,
+      o.order_number,
+      o.subtotal,
+      o.shipping,
+      o.discount,
+      o.total,
+      o.payment_method,
+      o.payment_status,
+      o.created_at,
+
+      u.name AS customer_name,
+      u.email AS customer_email,
+
+      a.full_name AS address_name,
+      a.phone AS address_phone,
+      a.line1,
+      a.line2,
+      a.city,
+      a.state,
+      a.postal_code
+
+    FROM orders o
+    INNER JOIN users u ON u.id = o.user_id
+    LEFT JOIN addresses a ON a.id = o.address_id
+
+    WHERE o.id = ? AND o.user_id = ?
+    LIMIT 1
+    `,
+    [orderId, user.id]
+  );
+
+  const invoiceOrder = (invoiceRows as any[])[0];
+
+  if (!invoiceOrder?.customer_email) {
+    throw new Error("Customer email was not found for this order.");
+  }
+
+  const [invoiceItemRows] = await db.query(
+    `
+    SELECT product_name, quantity, unit_price
+    FROM order_items
+    WHERE order_id = ?
+    ORDER BY id ASC
+    `,
+    [orderId]
+  );
+
+  const invoiceItems = invoiceItemRows as any[];
+
+  const pdf = await generateInvoice({
+    orderNumber: invoiceOrder.order_number,
+    orderDate: invoiceOrder.created_at,
+    customerName:
+      invoiceOrder.customer_name ||
+      invoiceOrder.address_name ||
+      "Customer",
+    customerEmail: invoiceOrder.customer_email,
+    phone: invoiceOrder.address_phone,
+    address: {
+      line1: invoiceOrder.line1 || "",
+      line2: invoiceOrder.line2,
+      city: invoiceOrder.city || "",
+      state: invoiceOrder.state || "",
+      postalCode: invoiceOrder.postal_code || "",
+    },
+    items: invoiceItems,
+    subtotal: invoiceOrder.subtotal,
+    shipping: invoiceOrder.shipping,
+    discount: invoiceOrder.discount || 0,
+    total: invoiceOrder.total,
+    paymentMethod: invoiceOrder.payment_method,
+    paymentStatus: invoiceOrder.payment_status,
+  });
+
+  await sendInvoiceEmail({
+    to: invoiceOrder.customer_email,
+    customerName:
+      invoiceOrder.customer_name ||
+      invoiceOrder.address_name ||
+      "Customer",
+    orderNumber: invoiceOrder.order_number,
+    pdf,
+  });
+
+  console.info(`Invoice emailed for order ${orderNumber}`);
+} catch (emailError) {
+  // Never undo a successfully placed order because of an email failure.
+  console.error(
+    `Order ${orderNumber} was placed, but invoice email failed:`,
+    emailError
+  );
+}
+
+return NextResponse.json({
+  orderNumber,
+  message: "Order placed successfully. Invoice email processing completed.",
+});
+
   } catch (e: any) {
     await conn.rollback();
 
