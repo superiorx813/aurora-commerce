@@ -1,182 +1,149 @@
-import { NextRequest, NextResponse } from "next/server";
 
-import { getSession } from "@/lib/auth";
+import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { getSession } from "@/lib/auth";
 
-const allowedStatuses = [
-    "PLACED",
-    "CONFIRMED",
-    "PACKED",
-    "SHIPPED",
-    "OUT_FOR_DELIVERY",
-    "DELIVERED",
-    "CANCELLED",
-];
+const ALLOWED_STATUSES = [
+  "PLACED",
+  "CONFIRMED",
+  "PACKED",
+  "SHIPPED",
+  "OUT_FOR_DELIVERY",
+  "DELIVERED",
+  "CANCELLED",
+] as const;
+
+type OrderStatus = (typeof ALLOWED_STATUSES)[number];
+
+type RouteContext = {
+  params: Promise<{ id: string }>;
+};
 
 export async function PATCH(
-    request: NextRequest,
-    context: {
-        params: Promise<{
-            id: string;
-        }>;
-    }
+  request: Request,
+  { params }: RouteContext
 ) {
-    try {
+  const user = await getSession();
 
-        /*
-         * Check login.
-         */
-        const user = await getSession();
+  if (!user) {
+    return NextResponse.json(
+      { error: "Please sign in." },
+      { status: 401 }
+    );
+  }
 
-        if (!user) {
-            return NextResponse.json(
-                {
-                    message: "Unauthorized",
-                },
-                {
-                    status: 401,
-                }
-            );
-        }
+  if (user.role !== "ADMIN") {
+    return NextResponse.json(
+      { error: "Admin access required." },
+      { status: 403 }
+    );
+  }
 
-        /*
-         * Only ADMIN can update orders.
-         */
-        if (user.role !== "ADMIN") {
-            return NextResponse.json(
-                {
-                    message: "Forbidden",
-                },
-                {
-                    status: 403,
-                }
-            );
-        }
+  const { id } = await params;
 
-        /*
-         * Get order ID.
-         */
-        const { id } = await context.params;
+  if (!/^\d+$/.test(id) || Number(id) <= 0) {
+    return NextResponse.json(
+      { error: "Invalid order ID." },
+      { status: 400 }
+    );
+  }
 
-        const orderId = Number(id);
+  let body: { status?: string };
 
-        if (
-            !Number.isInteger(orderId) ||
-            orderId <= 0
-        ) {
-            return NextResponse.json(
-                {
-                    message: "Invalid order ID.",
-                },
-                {
-                    status: 400,
-                }
-            );
-        }
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json(
+      { error: "Invalid request body." },
+      { status: 400 }
+    );
+  }
 
-        /*
-         * Get request body.
-         */
-        const body = await request.json();
+  const nextStatus = String(body.status ?? "").toUpperCase();
 
-        const status = String(
-            body.status ?? ""
-        )
-            .trim()
-            .toUpperCase();
+  if (
+    !ALLOWED_STATUSES.includes(nextStatus as OrderStatus)
+  ) {
+    return NextResponse.json(
+      { error: "Invalid order status." },
+      { status: 400 }
+    );
+  }
 
-        /*
-         * Validate status against the
-         * actual orders.status ENUM.
-         */
-        if (!allowedStatuses.includes(status)) {
-            return NextResponse.json(
-                {
-                    message:
-                        "Invalid order status.",
-                },
-                {
-                    status: 400,
-                }
-            );
-        }
+  const connection = await db.getConnection();
 
-        /*
-         * Check whether the order exists.
-         */
-        const [orderResult] = await db.query(
-            `
-            SELECT
-                id,
-                status
-            FROM orders
-            WHERE id = ?
-            LIMIT 1
-            `,
-            [orderId]
-        );
+  try {
+    await connection.beginTransaction();
 
-        const existingOrders =
-            orderResult as Array<{
-                id: number;
-                status: string | null;
-            }>;
+    const [orderRows]: any = await connection.execute(
+      `SELECT id, status
+       FROM orders
+       WHERE id = ?
+       FOR UPDATE`,
+      [Number(id)]
+    );
 
-        if (existingOrders.length === 0) {
-            return NextResponse.json(
-                {
-                    message:
-                        "Order not found.",
-                },
-                {
-                    status: 404,
-                }
-            );
-        }
+    if (!orderRows.length) {
+      await connection.rollback();
 
-        /*
-         * Update order status.
-         */
-        await db.query(
-            `
-            UPDATE orders
-            SET status = ?
-            WHERE id = ?
-            `,
-            [
-                status,
-                orderId,
-            ]
-        );
-
-        /*
-         * Return updated status.
-         */
-        return NextResponse.json({
-            success: true,
-            message:
-                "Order status updated successfully.",
-            status,
-        });
-
-    } catch (error) {
-
-        console.error(
-            "ADMIN ORDER STATUS UPDATE ERROR:",
-            error
-        );
-
-        return NextResponse.json(
-            {
-                success: false,
-                message:
-                    error instanceof Error
-                        ? error.message
-                        : "Failed to update order status.",
-            },
-            {
-                status: 500,
-            }
-        );
+      return NextResponse.json(
+        { error: "Order not found." },
+        { status: 404 }
+      );
     }
+
+    const order = orderRows[0];
+    const previousStatus = String(
+      order.status || "PLACED"
+    ).toUpperCase();
+
+    if (previousStatus === nextStatus) {
+      await connection.commit();
+
+      return NextResponse.json({
+        success: true,
+        message: "Order already has this status.",
+        status: nextStatus,
+        changed: false,
+      });
+    }
+
+    await connection.execute(
+      `UPDATE orders
+       SET status = ?,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = ?`,
+      [nextStatus, Number(id)]
+    );
+
+    const note = `Status changed from ${previousStatus} to ${nextStatus}.`;
+
+    await connection.execute(
+      `INSERT INTO order_status_history
+         (order_id, status, note, changed_by)
+       VALUES (?, ?, ?, ?)`,
+      [Number(id), nextStatus, note, user.id]
+    );
+
+    await connection.commit();
+
+    return NextResponse.json({
+      success: true,
+      message: "Order status and history updated.",
+      previousStatus,
+      status: nextStatus,
+      changed: true,
+    });
+  } catch (error) {
+    await connection.rollback();
+
+    console.error("Order status update error:", error);
+
+    return NextResponse.json(
+      { error: "Unable to update order status." },
+      { status: 500 }
+    );
+  } finally {
+    connection.release();
+  }
 }

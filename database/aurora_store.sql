@@ -391,3 +391,34 @@ CREATE TABLE order_requests (
         REFERENCES users(id)
         ON DELETE CASCADE
 );
+
+-- 04/10/2026
+USE aurora_store;
+CREATE TABLE IF NOT EXISTS order_status_history (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    order_id BIGINT UNSIGNED NOT NULL,
+    status VARCHAR(40) NOT NULL,
+    note VARCHAR(500) NULL,
+    changed_by BIGINT UNSIGNED NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    PRIMARY KEY (id),
+    INDEX idx_order_history (order_id, created_at),
+    INDEX idx_order_history_status (status)
+);
+-- Add a baseline history entry for existing orders
+INSERT INTO order_status_history (
+    order_id,
+    status,
+    note
+)
+SELECT
+    o.id,
+    COALESCE(NULLIF(o.status, ''), 'PLACED'),
+    'Current status captured when status history was enabled.'
+FROM orders o
+WHERE NOT EXISTS (
+    SELECT 1
+    FROM order_status_history h
+    WHERE h.order_id = o.id
+);

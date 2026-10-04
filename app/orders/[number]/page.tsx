@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { notFound } from "next/navigation";
 import { money } from "@/lib/utils";
 import Link from "next/link";
+import OrderTrackingTimeline from "@/components/orders/OrderTrackingTimeline";
 
 export const dynamic = "force-dynamic";
 
@@ -13,81 +14,82 @@ type OrderPageProps = {
 };
 
 function getStatusInfo(status: string) {
-  const normalized = String(status || "").toUpperCase();
+  const normalized = String(status || "PLACED").toUpperCase();
 
-  switch (normalized) {
-    case "PENDING":
-      return {
-        label: "Order Placed",
-        badge: "bg-warning text-dark",
-        icon: "✓",
-        description: "Your order has been received.",
-      };
+  const statusMap: Record<
+    string,
+    { label: string; badge: string; icon: string; description: string }
+  > = {
+    PLACED: {
+      label: "Order Placed",
+      badge: "bg-warning text-dark",
+      icon: "✓",
+      description: "Your order has been received.",
+    },
+    PENDING: {
+      label: "Order Placed",
+      badge: "bg-warning text-dark",
+      icon: "✓",
+      description: "Your order has been received.",
+    },
+    CONFIRMED: {
+      label: "Confirmed",
+      badge: "bg-primary",
+      icon: "✓",
+      description: "Your order has been confirmed.",
+    },
+    PACKED: {
+      label: "Packed",
+      badge: "bg-primary",
+      icon: "📦",
+      description: "Your items have been packed.",
+    },
+    PROCESSING: {
+      label: "Processing",
+      badge: "bg-info text-dark",
+      icon: "⚙",
+      description: "Your order is being prepared.",
+    },
+    SHIPPED: {
+      label: "Shipped",
+      badge: "bg-primary",
+      icon: "➜",
+      description: "Your order is on the way.",
+    },
+    OUT_FOR_DELIVERY: {
+      label: "Out for Delivery",
+      badge: "bg-success",
+      icon: "🚚",
+      description: "Your order is out for delivery.",
+    },
+    DELIVERED: {
+      label: "Delivered",
+      badge: "bg-success",
+      icon: "✓",
+      description: "Your order has been delivered.",
+    },
+    CANCELLED: {
+      label: "Cancelled",
+      badge: "bg-danger",
+      icon: "×",
+      description: "This order has been cancelled.",
+    },
+    RETURNED: {
+      label: "Returned",
+      badge: "bg-secondary",
+      icon: "↩",
+      description: "This order has been returned.",
+    },
+  };
 
-    case "CONFIRMED":
-      return {
-        label: "Confirmed",
-        badge: "bg-primary",
-        icon: "✓",
-        description: "Your order has been confirmed.",
-      };
-
-    case "PROCESSING":
-      return {
-        label: "Processing",
-        badge: "bg-info text-dark",
-        icon: "⚙",
-        description: "Your order is being prepared.",
-      };
-
-    case "SHIPPED":
-      return {
-        label: "Shipped",
-        badge: "bg-primary",
-        icon: "➜",
-        description: "Your order is on the way.",
-      };
-
-    case "OUT_FOR_DELIVERY":
-      return {
-        label: "Out for Delivery",
-        badge: "bg-success",
-        icon: "🚚",
-        description: "Your order is out for delivery.",
-      };
-
-    case "DELIVERED":
-      return {
-        label: "Delivered",
-        badge: "bg-success",
-        icon: "✓",
-        description: "Your order has been delivered.",
-      };
-
-    case "CANCELLED":
-      return {
-        label: "Cancelled",
-        badge: "bg-danger",
-        icon: "×",
-        description: "This order has been cancelled.",
-      };
-
-    case "RETURNED":
-      return {
-        label: "Returned",
-        badge: "bg-secondary",
-        icon: "↩",
-        description: "This order has been returned.",
-      };
-
-    default:
-      return {
-        label: normalized.replaceAll("_", " ") || "Processing",
-        badge: "bg-secondary",
-        icon: "•",
-        description: "Your order is being processed.",
-      };
-  }
+  return (
+    statusMap[normalized] || {
+      label: normalized.replaceAll("_", " "),
+      badge: "bg-secondary",
+      icon: "•",
+      description: "Your order status is being updated.",
+    }
+  );
 }
 
 function getTrackingSteps(status: string) {
@@ -316,7 +318,7 @@ export default async function OrderDetail({
                 <div>
 
                   <div className="text-uppercase small fw-bold text-success mb-1">
-                    Order Confirmed
+                    {statusInfo.label}
                   </div>
 
                   <h2 className="fw-bold mb-2">
@@ -362,88 +364,12 @@ export default async function OrderDetail({
 
       </div>
 
-      {/* =====================================================
-          TRACKING
-      ===================================================== */}
+      {/* LIVE ORDER TRACKING */}
 
-      <div className="card border-0 shadow-sm rounded-4 mb-4">
-
-        <div className="card-body p-4 p-lg-5">
-
-          <div className="mb-4">
-
-            <div className="text-uppercase small fw-bold text-primary">
-              Order Journey
-            </div>
-
-            <h3 className="fw-bold mb-1">
-              Track your order
-            </h3>
-
-            <p className="text-secondary mb-0">
-              Follow the progress of your Aurora order.
-            </p>
-
-          </div>
-
-          <div className="row g-3">
-
-            {trackingSteps.map((step, index) => (
-
-              <div
-                className="col-12 col-md"
-                key={step.title}
-              >
-
-                <div
-                  className={`card h-100 border rounded-4 ${
-                    step.completed
-                      ? "border-success-subtle bg-success-subtle"
-                      : "bg-light"
-                  }`}
-                >
-
-                  <div className="card-body p-3">
-
-                    <div className="d-flex align-items-center gap-2 mb-2">
-
-                      <span
-                        className={`rounded-circle d-inline-flex align-items-center justify-content-center ${
-                          step.completed
-                            ? "bg-success text-white"
-                            : "bg-secondary-subtle text-secondary"
-                        }`}
-                        style={{
-                          width: "34px",
-                          height: "34px",
-                        }}
-                      >
-                        {step.completed ? "✓" : index + 1}
-                      </span>
-
-                      <span className="small fw-bold">
-                        {step.title}
-                      </span>
-
-                    </div>
-
-                    <p className="small text-secondary mb-0">
-                      {step.description}
-                    </p>
-
-                  </div>
-
-                </div>
-
-              </div>
-
-            ))}
-
-          </div>
-
-        </div>
-
-      </div>
+<OrderTrackingTimeline
+  orderNumber={order.order_number}
+  initialStatus={order.status || "PLACED"}
+/>
 
       {/* =====================================================
           MAIN CONTENT
