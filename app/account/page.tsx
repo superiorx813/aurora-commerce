@@ -20,6 +20,11 @@ const particles = [
 export default function AccountPage() {
   const [mode, setMode] = useState<"login" | "register">("login");
 
+  // Registration notification fields
+  const [mobileNumber, setMobileNumber] = useState("");
+  const [whatsappOptIn, setWhatsappOptIn] = useState(true);
+  const [smsOptIn, setSmsOptIn] = useState(true);
+
   const [f, setF] = useState({
     name: "",
     email: "user@aurora.local",
@@ -41,12 +46,25 @@ export default function AccountPage() {
           ? "/api/auth/login"
           : "/api/auth/register";
 
+      const requestBody =
+        mode === "register"
+          ? {
+              ...f,
+              mobileNumber,
+              whatsappOptIn,
+              smsOptIn,
+            }
+          : {
+              email: f.email,
+              password: f.password,
+            };
+
       const response = await fetch(endpoint, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(f),
+        body: JSON.stringify(requestBody),
       });
 
       const data = await response.json();
@@ -71,6 +89,13 @@ export default function AccountPage() {
   ) => {
     setMode(newMode);
     setError("");
+
+    // Clear registration-only fields when switching back to login
+    if (newMode === "login") {
+      setMobileNumber("");
+      setWhatsappOptIn(true);
+      setSmsOptIn(true);
+    }
   };
 
   return (
@@ -113,7 +138,6 @@ export default function AccountPage() {
 
       {/* =========================================================
           LIGHT BLUE OVERLAY
-          Intentionally transparent so image remains visible.
       ========================================================= */}
       <div
         className="position-absolute top-0 start-0 w-100 h-100"
@@ -231,9 +255,9 @@ export default function AccountPage() {
                 scale: 0.97,
               }}
               animate={{
-                opacity: 40,
+                opacity: 1,
                 y: 0,
-                scale: 1.1,
+                scale: 1,
               }}
               transition={{
                 duration: 0.75,
@@ -486,6 +510,118 @@ export default function AccountPage() {
                           }}
                         />
                       </div>
+
+                      {/* =================================================
+                          MOBILE + NOTIFICATION SETTINGS
+                          REGISTRATION ONLY
+                      ================================================= */}
+                      {mode === "register" && (
+                        <motion.div
+                          initial={{
+                            opacity: 0,
+                            height: 0,
+                            y: -8,
+                          }}
+                          animate={{
+                            opacity: 1,
+                            height: "auto",
+                            y: 0,
+                          }}
+                          transition={{
+                            duration: 0.3,
+                          }}
+                        >
+                          {/* MOBILE NUMBER */}
+                          <div className="mb-3">
+                            <label className="form-label text-white small fw-semibold mb-1">
+                              Mobile Number
+                            </label>
+
+                            <input
+                              type="tel"
+                              className="form-control rounded-3"
+                              placeholder="+91 9876543210"
+                              value={mobileNumber}
+                              onChange={(e) =>
+                                setMobileNumber(
+                                  e.target.value
+                                )
+                              }
+                              required
+                              style={{
+                                height: 45,
+                                background:
+                                  "rgba(255,255,255,.9)",
+                                border:
+                                  "1px solid rgba(255,255,255,.75)",
+                              }}
+                            />
+
+                            <div className="form-text text-white opacity-75">
+                              We'll use this number for order notifications.
+                            </div>
+                          </div>
+
+                          {/* NOTIFICATION PREFERENCES */}
+                          <div
+                            className="rounded-3 p-3 mb-3"
+                            style={{
+                              background:
+                                "rgba(255,255,255,.92)",
+                              border:
+                                "1px solid rgba(255,255,255,.8)",
+                            }}
+                          >
+                            <div className="fw-semibold mb-2 text-dark">
+                              Order Notifications
+                            </div>
+
+                            {/* WHATSAPP */}
+                            <div className="form-check mb-2">
+                              <input
+                                className="form-check-input"
+                                type="checkbox"
+                                id="whatsappOptIn"
+                                checked={whatsappOptIn}
+                                onChange={(e) =>
+                                  setWhatsappOptIn(
+                                    e.target.checked
+                                  )
+                                }
+                              />
+
+                              <label
+                                className="form-check-label text-dark"
+                                htmlFor="whatsappOptIn"
+                              >
+                                Receive order updates on WhatsApp
+                              </label>
+                            </div>
+
+                            {/* SMS */}
+                            <div className="form-check">
+                              <input
+                                className="form-check-input"
+                                type="checkbox"
+                                id="smsOptIn"
+                                checked={smsOptIn}
+                                onChange={(e) =>
+                                  setSmsOptIn(
+                                    e.target.checked
+                                  )
+                                }
+                              />
+
+                              <label
+                                className="form-check-label text-dark"
+                                htmlFor="smsOptIn"
+                              >
+                                Receive order updates by SMS
+                              </label>
+                            </div>
+                          </div>
+                        </motion.div>
+                      )}
 
                       {/* PASSWORD */}
                       <div className="mb-2">

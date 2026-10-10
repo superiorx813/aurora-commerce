@@ -422,3 +422,13 @@ WHERE NOT EXISTS (
     FROM order_status_history h
     WHERE h.order_id = o.id
 );
+
+-- 7/10/2026
+-- adding phone number in users table
+USE aurora_store;
+ALTER TABLE users
+ADD COLUMN mobile_number VARCHAR(20) NULL AFTER email;
+-- for whatsapp msg and sms
+ALTER TABLE users
+ADD COLUMN whatsapp_opt_in TINYINT(1) NOT NULL DEFAULT 0 AFTER mobile_number,
+ADD COLUMN sms_opt_in TINYINT(1) NOT NULL DEFAULT 0 AFTER whatsapp_opt_in;

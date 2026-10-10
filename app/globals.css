@@ -3713,3 +3713,114 @@
     }
 
 }
+/* ========================================
+   AURORA COMMERCE - THEME VARIABLES
+======================================== */
+
+:root {
+  color-scheme: light;
+
+  --page-bg: #f8fafc;
+  --surface-bg: #ffffff;
+  --surface-secondary: #f1f5f9;
+  --text-primary: #1e293b;
+  --text-secondary: #64748b;
+  --border-color: #e2e8f0;
+  --theme-toggle-bg: #ffffff;
+  --theme-toggle-color: #312e81;
+  --theme-toggle-border: #dfe4ea;
+
+  --transition-theme:
+    background-color 0.25s ease,
+    color 0.25s ease,
+    border-color 0.25s ease;
+}
+
+html[data-theme="dark"] {
+  color-scheme: dark;
+
+  --page-bg: #0f172a;
+  --surface-bg: #1e293b;
+  --surface-secondary: #263449;
+  --text-primary: #f1f5f9;
+  --text-secondary: #cbd5e1;
+  --border-color: #334155;
+  --theme-toggle-bg: #263449;
+  --theme-toggle-color: #facc15;
+  --theme-toggle-border: #475569;
+}
+
+html,
+body {
+  background-color: var(--page-bg);
+  color: var(--text-primary);
+  transition: var(--transition-theme);
+}
+
+/* Main content surfaces */
+html[data-theme="dark"] .card,
+html[data-theme="dark"] .modal-content,
+html[data-theme="dark"] .dropdown-menu,
+html[data-theme="dark"] .list-group-item {
+  background-color: var(--surface-bg);
+  color: var(--text-primary);
+  border-color: var(--border-color);
+}
+
+/* Text */
+html[data-theme="dark"] h1,
+html[data-theme="dark"] h2,
+html[data-theme="dark"] h3,
+html[data-theme="dark"] h4,
+html[data-theme="dark"] h5,
+html[data-theme="dark"] h6,
+html[data-theme="dark"] p,
+html[data-theme="dark"] label,
+html[data-theme="dark"] .form-label {
+  color: var(--text-primary);
+}
+
+/* Form fields */
+html[data-theme="dark"] input:not([type="checkbox"]):not([type="radio"]),
+html[data-theme="dark"] textarea,
+html[data-theme="dark"] select {
+  background-color: var(--surface-secondary);
+  color: var(--text-primary);
+  border-color: var(--border-color);
+}
+
+html[data-theme="dark"] input::placeholder,
+html[data-theme="dark"] textarea::placeholder {
+  color: var(--text-secondary);
+}
+
+/* Tables */
+html[data-theme="dark"] .table {
+  --bs-table-bg: var(--surface-bg);
+  --bs-table-color: var(--text-primary);
+  --bs-table-border-color: var(--border-color);
+  --bs-table-striped-bg: var(--surface-secondary);
+  --bs-table-striped-color: var(--text-primary);
+}
+
+/* Theme-aware storefront header */
+html[data-theme="dark"] .site-header {
+  background-color: #111827;
+  color: #f8fafc;
+  border-color: #334155;
+}
+
+html[data-theme="dark"] .announcement {
+  background-color: #1e293b;
+  color: #e2e8f0;
+}
+
+/* Smooth theme transitions */
+html[data-theme="dark"] .card,
+html[data-theme="dark"] .modal-content,
+html[data-theme="dark"] .dropdown-menu,
+html[data-theme="dark"] .form-control,
+html[data-theme="dark"] .form-select,
+html[data-theme="dark"] .table {
+  transition: var(--transition-theme);
+}

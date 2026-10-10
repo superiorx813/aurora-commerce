@@ -33,6 +33,8 @@ import {
   Send,
   Pencil,
   CircleAlert,
+   Sun,
+  Moon,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
@@ -79,6 +81,43 @@ export default function Header() {
   const [profileError, setProfileError] = useState("");
   const [profileSuccess, setProfileSuccess] = useState("");
   const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const [isDarkMode, setIsDarkMode] = useState(false);
+const [themeReady, setThemeReady] = useState(false);
+
+useEffect(() => {
+  const savedTheme = localStorage.getItem("aurora-theme");
+  const prefersDark = window.matchMedia(
+    "(prefers-color-scheme: dark)"
+  ).matches;
+
+  const darkMode =
+    savedTheme === "dark" ||
+    (savedTheme === null && prefersDark);
+
+  setIsDarkMode(darkMode);
+  document.documentElement.setAttribute(
+    "data-theme",
+    darkMode ? "dark" : "light"
+  );
+
+  setThemeReady(true);
+}, []);
+
+const toggleTheme = () => {
+  const nextDarkMode = !isDarkMode;
+
+  setIsDarkMode(nextDarkMode);
+
+  document.documentElement.setAttribute(
+    "data-theme",
+    nextDarkMode ? "dark" : "light"
+  );
+
+  localStorage.setItem(
+    "aurora-theme",
+    nextDarkMode ? "dark" : "light"
+  );
+};
 
   const [profileForm, setProfileForm] = useState({
     phone: "",
@@ -429,6 +468,40 @@ export default function Header() {
           </form>
 
           <nav className="header-actions">
+            <button
+             type="button"
+               onClick={toggleTheme}
+                 aria-label={
+               isDarkMode
+                 ? "Switch to light mode"
+                  : "Switch to dark mode"
+                 }
+                 title={
+                 isDarkMode
+                  ? "Switch to light mode"
+                : "Switch to dark mode"
+                }
+  disabled={!themeReady}
+  style={{
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: "7px",
+    padding: "9px 12px",
+    borderRadius: "12px",
+    border: "1px solid var(--theme-toggle-border, #dfe4ea)",
+    background: "var(--theme-toggle-bg, #ffffff)",
+    color: "var(--theme-toggle-color, #312e81)",
+    cursor: themeReady ? "pointer" : "default",
+    transition: "all 0.25s ease",
+  }}
+>
+  {isDarkMode ? <Sun size={19} /> : <Moon size={19} />}
+
+  <span className="desktop-label">
+    {isDarkMode ? "Light" : "Dark"}
+  </span>
+</button>
             <Link href="/wishlist" aria-label="Wishlist">
               <Heart size={20} />
               <span className="desktop-label">Wishlist</span>
