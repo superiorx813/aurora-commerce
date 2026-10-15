@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { money } from "@/lib/utils";
 import Link from "next/link";
 import OrderTrackingTimeline from "@/components/orders/OrderTrackingTimeline";
+import OrderFeedback from "@/components/orders/OrderFeedback";
 
 export const dynamic = "force-dynamic";
 
@@ -241,6 +242,21 @@ export default async function OrderDetail({
   const trackingSteps = getTrackingSteps(order.status);
 
   const orderDate = new Date(order.created_at);
+  const [feedbackRows] = await db.query(
+  `SELECT id
+   FROM order_feedback
+   WHERE order_id = ? AND user_id = ?
+   LIMIT 1`,
+  [String(order.id), String(user.id)]
+);
+
+const hasFeedback = (feedbackRows as any[]).length > 0;
+
+const isDelivered =
+  String(order.status || "")
+    .trim()
+    .toUpperCase()
+    .replaceAll(" ", "_") === "DELIVERED";
 
   return (
     <div className="container py-4 py-lg-5">
@@ -906,7 +922,7 @@ export default async function OrderDetail({
               >
                 Account
               </Link>
-
+            
             </div>
 
           </div>
@@ -914,6 +930,12 @@ export default async function OrderDetail({
         </div>
 
       </div>
+      <OrderFeedback
+  key={String(order.order_number)}
+  orderNumber={String(order.order_number)}
+  initialDelivered={isDelivered}
+  initialSubmitted={hasFeedback}
+/>
 
     </div>
   );

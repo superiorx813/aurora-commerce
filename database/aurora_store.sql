@@ -432,3 +432,26 @@ ADD COLUMN mobile_number VARCHAR(20) NULL AFTER email;
 ALTER TABLE users
 ADD COLUMN whatsapp_opt_in TINYINT(1) NOT NULL DEFAULT 0 AFTER mobile_number,
 ADD COLUMN sms_opt_in TINYINT(1) NOT NULL DEFAULT 0 AFTER whatsapp_opt_in;
+
+-- 14/10/2026
+CREATE TABLE IF NOT EXISTS order_feedback (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    order_id VARCHAR(64) NOT NULL,
+    order_number VARCHAR(100) NOT NULL,
+    user_id VARCHAR(64) NOT NULL,
+
+    overall_experience VARCHAR(20) NOT NULL,
+    product_quality VARCHAR(30) NOT NULL,
+    delivery_experience VARCHAR(30) NOT NULL,
+    packaging_quality VARCHAR(20) NOT NULL,
+    value_for_money VARCHAR(20) NOT NULL,
+
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    PRIMARY KEY (id),
+    UNIQUE KEY uq_order_feedback_order (order_id),
+    KEY idx_order_feedback_user (user_id)
+) ENGINE=InnoDB
+  DEFAULT CHARSET=utf8mb4
+  COLLATE=utf8mb4_unicode_ci;
+
